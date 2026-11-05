@@ -50,6 +50,7 @@ services:
       COOKIE_SECURE: "true"
       ALLOW_DEMO_SEED: ${ALLOW_DEMO_SEED:-false}
       SEED_PASSWORD: ${SEED_PASSWORD:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
     # As migrações são idempotentes e só adicionam: rodam a cada subida, antes da API.
     command:
       - sh

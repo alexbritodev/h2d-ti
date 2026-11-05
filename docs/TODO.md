@@ -100,7 +100,7 @@ Progresso
 - [ ] `TL` Criar endpoints de upload, jobs, reindexação e busca, com limite de tipo e tamanho
 - [ ] `A` Criar a tela de ingestão, com jobs e versões
 - [ ] `A` Criar a tela de base de conhecimento
-- [ ] `B` Finalizar 10 a 15 manuais fictícios
+- [x] `B` Escrever 15 manuais fictícios (12 públicos e 3 restritos à TI), só locais em `manuais/` (fora do Git, enviados pela tela de ingestão). `B` ainda revisa o conteúdo
 - [ ] `B` Criar o conjunto de avaliação v0, com 30 perguntas
 - [ ] `TL` Medir memória com `docker stats` e definir limites por container
 

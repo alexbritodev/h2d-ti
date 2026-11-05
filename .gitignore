@@ -1,3 +1,6 @@
+# Manuais fictícios: ficam só na máquina, são enviados pela tela de ingestão
+manuais/
+
 # Segredos
 .env
 .env.*
