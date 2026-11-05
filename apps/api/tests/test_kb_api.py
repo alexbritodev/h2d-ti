@@ -160,3 +160,22 @@ async def test_reindexar_cria_novo_job(client, make_user):
 
     assert response.status_code == 202
     assert len((await client.get("/api/kb/jobs")).json()) == 2
+
+
+async def test_documento_publicado_abre_em_secoes_e_o_restrito_some_para_o_usuario(
+    client, make_user, session
+):
+    await _login(client, make_user, Role.ADMIN, "admin@h2d.local")
+    vpn = (await _upload(client, "vpn.md", VPN)).json()["document_id"]
+    seg = (await _upload(client, "seg.md", SEG)).json()["document_id"]
+    await _process_all(session)
+
+    visto_pelo_admin = (await client.get(f"/api/kb/library/{seg}")).json()
+    client.cookies.clear()
+    await _login(client, make_user, Role.USER, "comum@h2d.local")
+    publico = await client.get(f"/api/kb/library/{vpn}")
+    restrito = await client.get(f"/api/kb/library/{seg}")
+
+    assert "15 minutos" in visto_pelo_admin["sections"][0]["content"]
+    assert publico.status_code == 200 and publico.json()["sections"]
+    assert restrito.status_code == 404

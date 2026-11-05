@@ -98,15 +98,15 @@ Progresso
 - [x] `TL` Implementar embeddings em lote, publicação atômica e arquivamento
 - [x] `TL` Implementar busca híbrida com RRF, filtro de visibilidade e varredura iterativa
 - [x] `TL` Criar endpoints de upload, jobs, reindexação e busca, com limite de tipo e tamanho (`/api/kb/*`)
-- [ ] `A` Criar a tela de ingestão, com jobs e versões
-- [ ] `A` Criar a tela de base de conhecimento
+- [x] `A` Criar a tela de ingestão, com jobs e versões (Administração → Documentos: envio, fila ao vivo, histórico com o motivo da falha, edição e reindexação)
+- [x] `A` Criar a tela de base de conhecimento (biblioteca por categoria, busca e documento aberto em seções; conteúdo restrito à TI não aparece para usuário comum)
 - [x] `B` Escrever 15 manuais fictícios (12 públicos e 3 restritos à TI), só locais em `manuais/` (fora do Git, enviados pela tela de ingestão). `B` ainda revisa o conteúdo
 - [ ] `B` Criar o conjunto de avaliação v0, com 30 perguntas
 - [x] `TL` Medir memória com `docker stats` (desenvolvimento): API ~700 MB e worker ~970 MB com o modelo carregado. Falta medir na VPS e decidir sobre a KVM 4
 
 **Critérios de saída**
 - [x] Arquivo duplicado não reprocessa; versão nova arquiva a anterior após publicar (testado)
-- [ ] Falha no job não deixa versão parcial ativa (testado), e o motivo aparece na tela (falta a tela)
+- [x] Falha no job não deixa versão parcial ativa (testado), e o motivo aparece na tela
 - [x] Teste automatizado: usuário comum nunca recebe trecho restrito à TI (busca, trecho citado e biblioteca; conferido também com o modelo real: 0 trechos de TI para o usuário comum)
 - [x] Linha de base de acerto top-k registrada (conjunto de 22 perguntas escritas por `TL`, modelo real, 15 manuais): top-1 13/22, top-3 17/22, top-5 20/22. Abaixo da meta: ver melhorias em [ADR-003](adr/0003-embeddings.md)
 

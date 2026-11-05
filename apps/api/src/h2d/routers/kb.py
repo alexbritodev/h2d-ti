@@ -99,6 +99,20 @@ class HitOut(BaseModel):
     score: float
 
 
+class SectionOut(BaseModel):
+    breadcrumb: str
+    content: str
+
+
+class DocumentView(BaseModel):
+    id: uuid.UUID
+    title: str
+    category: str | None
+    visibility: Visibility
+    published_at: datetime | None
+    sections: list[SectionOut]
+
+
 class LibraryItem(BaseModel):
     id: uuid.UUID
     title: str
@@ -348,3 +362,31 @@ async def library(session: SessionDep, user: CurrentUser) -> list[LibraryItem]:
         )
         for d, published_at in await session.execute(query)
     ]
+
+
+@router.get("/library/{document_id}", operation_id="getLibraryDocument")
+async def library_document(
+    document_id: uuid.UUID, session: SessionDep, user: CurrentUser
+) -> DocumentView:
+    """Texto publicado de um documento, em seções. Restrito à TI responde 404 para usuário comum."""
+    row = (
+        await session.execute(
+            select(KbDocument, KbDocumentVersion)
+            .join(KbDocumentVersion, KbDocumentVersion.document_id == KbDocument.id)
+            .where(KbDocument.id == document_id, KbDocumentVersion.status == VersionStatus.ACTIVE)
+        )
+    ).first()
+    if row is None or (row[0].visibility is Visibility.IT and not _can_see_it(user)):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Documento não encontrado")
+    document, version = row
+    chunks = await session.scalars(
+        select(KbChunk).where(KbChunk.version_id == version.id).order_by(KbChunk.position)
+    )
+    return DocumentView(
+        id=document.id,
+        title=document.title,
+        category=document.category,
+        visibility=document.visibility,
+        published_at=version.published_at,
+        sections=[SectionOut(breadcrumb=c.breadcrumb, content=c.content) for c in chunks],
+    )

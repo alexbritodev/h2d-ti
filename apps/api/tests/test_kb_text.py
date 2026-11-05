@@ -86,6 +86,22 @@ def test_tabela_nao_e_partida_quando_cabe():
     assert "| 3 | 4 |" in com_tabela[0].content
 
 
+def test_tabela_grande_partida_repete_o_cabecalho_em_cada_pedaco():
+    linhas = "\n".join(
+        f"| erro {n} | causa {n} com algumas palavras | corrija {n} assim |" for n in range(1, 16)
+    )
+    tabela = f"| Mensagem | Causa | O que fazer |\n| --- | --- | --- |\n{linhas}"
+
+    chunks = chunk_markdown(f"## Erros\n\n{tabela}", max_words=40)
+
+    assert len(chunks) > 1
+    for chunk in chunks:
+        primeiras = chunk.content.splitlines()[:2]
+        assert primeiras == ["| Mensagem | Causa | O que fazer |", "| --- | --- | --- |"]
+    juntos = "\n".join(c.content for c in chunks)
+    assert all(f"| erro {n} |" in juntos for n in range(1, 16))
+
+
 def test_bloco_de_codigo_fica_inteiro_e_titulo_dentro_dele_nao_conta():
     md = "## Comando\n\n```\n# isto é comentário, não título\nls -l\n```\n\nDepois."
 

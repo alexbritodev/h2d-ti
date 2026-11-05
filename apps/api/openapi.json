@@ -223,6 +223,62 @@
         "title": "DocumentUpdate",
         "type": "object"
       },
+      "DocumentView": {
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "sections": {
+            "items": {
+              "$ref": "#/components/schemas/SectionOut"
+            },
+            "title": "Sections",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/Visibility"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "category",
+          "visibility",
+          "published_at",
+          "sections"
+        ],
+        "title": "DocumentView",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -484,6 +540,24 @@
         ],
         "title": "Role",
         "type": "string"
+      },
+      "SectionOut": {
+        "properties": {
+          "breadcrumb": {
+            "title": "Breadcrumb",
+            "type": "string"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          }
+        },
+        "required": [
+          "breadcrumb",
+          "content"
+        ],
+        "title": "SectionOut",
+        "type": "object"
       },
       "UploadOut": {
         "properties": {
@@ -1336,6 +1410,66 @@
           }
         },
         "summary": "Library",
+        "tags": [
+          "kb"
+        ]
+      }
+    },
+    "/api/kb/library/{document_id}": {
+      "get": {
+        "description": "Texto publicado de um documento, em seções. Restrito à TI responde 404 para usuário comum.",
+        "operationId": "getLibraryDocument",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "h2d_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "H2D Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Library Document",
         "tags": [
           "kb"
         ]

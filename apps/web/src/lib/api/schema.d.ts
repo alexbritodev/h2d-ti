@@ -184,6 +184,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/kb/library/{document_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Library Document
+         * @description Texto publicado de um documento, em seções. Restrito à TI responde 404 para usuário comum.
+         */
+        get: operations["getLibraryDocument"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/kb/search": {
         parameters: {
             query?: never;
@@ -328,6 +348,23 @@ export interface components {
             title?: string | null;
             visibility?: components["schemas"]["Visibility"] | null;
         };
+        /** DocumentView */
+        DocumentView: {
+            /** Category */
+            category: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Published At */
+            published_at: string | null;
+            /** Sections */
+            sections: components["schemas"]["SectionOut"][];
+            /** Title */
+            title: string;
+            visibility: components["schemas"]["Visibility"];
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -431,6 +468,13 @@ export interface components {
          * @enum {string}
          */
         Role: "user" | "tech" | "admin";
+        /** SectionOut */
+        SectionOut: {
+            /** Breadcrumb */
+            breadcrumb: string;
+            /** Content */
+            content: string;
+        };
         /** UploadOut */
         UploadOut: {
             /**
@@ -874,6 +918,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LibraryItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getLibraryDocument: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: {
+                h2d_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentView"];
                 };
             };
             /** @description Validation Error */

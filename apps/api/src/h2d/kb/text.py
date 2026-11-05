@@ -93,17 +93,27 @@ def _blocks(lines: list[str]) -> list[str]:
     return ["\n".join(block) for block in blocks]
 
 
+_TABLE_SEPARATOR = re.compile(r"^\s*\|[\s:|-]+\|\s*$")
+
+
 def _split_large(block: str, max_words: int) -> list[str]:
-    """Último recurso para um bloco maior que o limite: parte por linha (item, linha de tabela)."""
+    """Último recurso para um bloco maior que o limite: parte por linha (item, linha de tabela).
+
+    Tabela partida repete o cabeçalho em cada pedaço, senão o Markdown deixa de reconhecê-la.
+    """
+    lines = block.splitlines()
+    header: list[str] = []
+    if len(lines) >= 3 and _TABLE_ROW.match(lines[0]) and _TABLE_SEPARATOR.match(lines[1]):
+        header, lines = lines[:2], lines[2:]
     pieces: list[str] = []
     current: list[str] = []
-    for line in block.splitlines():
-        if current and _words("\n".join([*current, line])) > max_words:
-            pieces.append("\n".join(current))
+    for line in lines:
+        if current and _words("\n".join([*header, *current, line])) > max_words:
+            pieces.append("\n".join([*header, *current]))
             current = []
         current.append(line)
     if current:
-        pieces.append("\n".join(current))
+        pieces.append("\n".join([*header, *current]))
     return pieces
 
 
