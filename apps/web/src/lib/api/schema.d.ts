@@ -95,6 +95,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Users */
+        get: operations["listUsers"];
+        put?: never;
+        /** Create User */
+        post: operations["createUser"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/users/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update User */
+        patch: operations["updateUser"];
+        trace?: never;
+    };
+    "/api/users/{user_id}/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reset Password */
+        post: operations["resetUserPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -118,11 +170,58 @@ export interface components {
             /** Password */
             password: string;
         };
+        /** PasswordReset */
+        PasswordReset: {
+            /** Password */
+            password: string;
+        };
         /**
          * Role
          * @enum {string}
          */
         Role: "user" | "tech" | "admin";
+        /** UserAdminOut */
+        UserAdminOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Department */
+            department: string | null;
+            /** Email */
+            email: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Is Vip */
+            is_vip: boolean;
+            /** Name */
+            name: string;
+            role: components["schemas"]["Role"];
+        };
+        /** UserCreate */
+        UserCreate: {
+            /** Department */
+            department?: string | null;
+            /** Email */
+            email: string;
+            /**
+             * Is Vip
+             * @default false
+             */
+            is_vip: boolean;
+            /** Name */
+            name: string;
+            /** Password */
+            password: string;
+            /** @default user */
+            role: components["schemas"]["Role"];
+        };
         /** UserOut */
         UserOut: {
             /** Department */
@@ -137,6 +236,21 @@ export interface components {
             /** Name */
             name: string;
             role: components["schemas"]["Role"];
+        };
+        /**
+         * UserUpdate
+         * @description Só os campos enviados mudam. O e-mail não muda: ele identifica a pessoa no histórico.
+         */
+        UserUpdate: {
+            /** Department */
+            department?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Is Vip */
+            is_vip?: boolean | null;
+            /** Name */
+            name?: string | null;
+            role?: components["schemas"]["Role"] | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -278,6 +392,147 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthOut"];
+                };
+            };
+        };
+    };
+    listUsers: {
+        parameters: {
+            query?: {
+                role?: components["schemas"]["Role"] | null;
+                status_filter?: ("active" | "inactive") | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: {
+                h2d_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserAdminOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                h2d_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserAdminOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: {
+                h2d_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserAdminOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resetUserPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: {
+                h2d_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordReset"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

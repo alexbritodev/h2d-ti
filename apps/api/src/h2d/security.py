@@ -12,6 +12,18 @@ _ALGORITHM = "HS256"
 _hasher = PasswordHasher()
 
 
+MIN_PASSWORD_LENGTH = 6
+
+
+def check_password_policy(password: str) -> str:
+    """Regra única de senha nova: 6 ou mais caracteres, com letras e números."""
+    if len(password) < MIN_PASSWORD_LENGTH:
+        raise ValueError(f"A senha precisa ter ao menos {MIN_PASSWORD_LENGTH} caracteres")
+    if not any(c.isalpha() for c in password) or not any(c.isdigit() for c in password):
+        raise ValueError("A senha precisa ter letras e números")
+    return password
+
+
 def hash_password(password: str) -> str:
     return _hasher.hash(password)
 

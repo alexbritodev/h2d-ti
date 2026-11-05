@@ -30,13 +30,14 @@ Progresso
 - [ ] `TL` Dar acesso ao repositório a Darles e Hanover (#6)
 - [ ] `TL` Confirmar Python no backend com os colegas; o [ADR-001](adr/0001-python-no-backend.md) segue como proposta (#7)
 - [ ] `TL` Decidir o plano do GitHub: no plano atual a proteção da `main` e a aprovação do ambiente não funcionam (#8)
-- [ ] `TL` Contratar a VPS e registrar o domínio (#9)
+- [x] `TL` Contratar a VPS (KVM 2, Hostinger). Domínio temporário em uso: `h2d.187-127-0-175.sslip.io`
+- [ ] `TL` Registrar o domínio definitivo (#9)
 - [ ] `TL` Criar a conta no OpenRouter com limite de gasto (#10)
 - [ ] `TL` Combinar a divisão de tarefas conforme o que cada um domina (#11)
 
 ## F1. Fundação
 
-**Estado em 05/11/2026: tudo o que roda sem VPS está feito e verificado. Faltam a proteção da `main`, o Projects e, principalmente, os 4 critérios de saída, que só fecham com a VPS (#13).**
+**Estado em 05/11/2026: o sistema está no ar na VPS (stack do Portainer, HTTPS no domínio temporário). Faltam a proteção da `main`, o Projects e fechar os critérios de saída na VPS (#13).**
 
 **Repositório e ambiente**
 - [x] `TL` Rodar `git init` e criar o repositório no GitHub
@@ -54,6 +55,7 @@ Progresso
 - [x] `TL` Implementar auth com JWT em cookie, argon2 e papéis
 - [x] `B` Criar o seed de usuários, técnicos, habilidades, categorias e SLAs (prazos de SLA provisórios)
 - [x] `TL` Criar `h2d.create_admin` para o primeiro administrador em produção, e exigir `ALLOW_DEMO_SEED` para rodar o seed lá
+- [x] `TL` Criar a API de usuários (`/api/users`: listar, criar, editar, desativar e redefinir senha; só admin; grava em `audit_log`). Senha com 6+ caracteres, letras e números
 
 **Frontend**
 - [x] `A` Criar o projeto Vite com TanStack Router e Query e Tailwind
@@ -62,7 +64,7 @@ Progresso
 - [x] `A` Montar o layout de ERP: menu por módulos, breadcrumbs, busca `Ctrl+K` e notificações
 - [x] `A` Criar o kit: badges, snippets, tabelas, abas, modais, painéis, gráficos e avisos
 - [x] `A` Criar as telas com dados de demonstração (divergência D10)
-- [ ] Todos: decidir se Cadastros ganha backend até 18/11; Auditoria e Configurações ficam com o selo (#15)
+- [x] `TL` Cadastros: **Usuários** ganhou backend (API só para admin, com auditoria, e tela ligada). Técnicos, categorias e SLAs seguem em demonstração, e Auditoria e Configurações ficam com o selo (#15)
 - [x] `A` Criar a tela de login e a proteção de rotas por papel
 - [x] `A` Gerar o cliente a partir do OpenAPI
 
@@ -76,7 +78,8 @@ Progresso
 - [x] `TL` Escrever o Caddyfile com TLS e cabeçalhos básicos (configuração validada, sem uso real)
 - [x] `TL` Criar o Compose de produção: validado com `docker compose config`, **nunca subiu**
 - [x] `TL` Escrever o deploy via GHCR e `deploy.sh` com rollback e checagem de `/api/ready`: validado com `actionlint`, **nunca rodou**. Roda só por disparo manual, porque o GitHub não aplica aprovação de ambiente neste plano
-- [ ] `TL` Preparar a VPS e fazer o primeiro deploy, seguindo o [runbook](RUNBOOK-VPS.md) (#13)
+- [x] `TL` Fazer o primeiro deploy na VPS por um stack do Portainer que compila do Git (`docker-compose.yml`); o desenho por SSH (`compose.prod.yaml`, `deploy.yml`) ficou sem uso. Ver o [runbook](RUNBOOK-VPS.md) (#13)
+- [ ] `TL` Fechar os critérios de saída da F1 na VPS: login do administrador, varredura de portas de fora e atualização por merge (#13)
 
 **Critérios de saída**
 - [ ] Login do seed funciona em HTTPS na VPS (local em HTTP: testado no navegador) (#13)

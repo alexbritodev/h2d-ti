@@ -1,15 +1,11 @@
 name: Deploy
 
-# Depois que o CI passa na main, as imagens são publicadas no GHCR sozinhas.
-# O deploy na VPS é SEMPRE manual: só roda quando alguém clica em "Run workflow", e ainda
-# exige DEPLOY_ENABLED=true. Isso substitui a aprovação do ambiente "production", que o
+# ALTERNATIVA ANTIGA, hoje sem uso: o deploy atual é o stack do Portainer (docker-compose.yml),
+# que compila direto do Git. Este workflow só roda por disparo manual ("Run workflow").
+# O deploy por SSH ainda exige DEPLOY_ENABLED=true. Isso substitui a aprovação do ambiente "production", que o
 # GitHub não oferece em repositório privado no plano Free. Quem tem permissão de escrita
 # no repositório consegue disparar o deploy. Enquanto a VPS não existe, ele é pulado.
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -22,7 +18,7 @@ concurrency:
 jobs:
   images:
     name: Publicar imagens
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: read

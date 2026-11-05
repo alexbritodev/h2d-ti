@@ -1,4 +1,4 @@
-import { CheckCircle2, Crown, Plus, XCircle } from "lucide-react";
+import { CheckCircle2, Plus, XCircle } from "lucide-react";
 import { type FormEvent, useState } from "react";
 
 import { PageHeader } from "@/components/PageHeader";
@@ -9,7 +9,9 @@ import { type Column, DataTable } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
 import { Avatar, Card, Field, Modal, Progress, Tabs } from "@/components/ui/primitives";
 import { demoToast } from "@/components/ui/toast";
-import { CATEGORIES, SLA_TARGETS, TECHNICIANS, USERS } from "@/lib/demo/data";
+import { CATEGORIES, SLA_TARGETS, TECHNICIANS } from "@/lib/demo/data";
+
+import { UsersTab } from "./UsersTab";
 
 function ActiveBadge({ active, on, off }: { active: boolean; on: string; off: string }) {
   const Icon = active ? CheckCircle2 : XCircle;
@@ -20,38 +22,6 @@ function ActiveBadge({ active, on, off }: { active: boolean; on: string; off: st
     </Badge>
   );
 }
-
-const USER_COLUMNS: Column<(typeof USERS)[number]>[] = [
-  {
-    key: "name",
-    header: "Nome",
-    sortValue: (user) => user.name,
-    render: (user) => (
-      <div className="flex items-center gap-3">
-        <Avatar name={user.name} />
-        <div>
-          <p className="flex items-center gap-1.5 font-medium whitespace-nowrap">
-            {user.name}
-            {user.vip && (
-              <Badge tone="warn">
-                <Crown aria-hidden className="size-3" />
-                VIP
-              </Badge>
-            )}
-          </p>
-          <p className="font-mono text-[11px] text-muted">{user.email}</p>
-        </div>
-      </div>
-    ),
-  },
-  { key: "role", header: "Papel", sortValue: (user) => user.role, render: (user) => <Badge>{user.role}</Badge> },
-  { key: "department", header: "Setor", sortValue: (user) => user.department, render: (user) => user.department },
-  {
-    key: "active",
-    header: "Situação",
-    render: (user) => <ActiveBadge active={user.active} on="Ativo" off="Inativo" />,
-  },
-];
 
 const TECHNICIAN_COLUMNS: Column<(typeof TECHNICIANS)[number]>[] = [
   {
@@ -177,12 +147,7 @@ export function RegistersPage() {
             {
               value: "users",
               label: "Usuários",
-              count: USERS.length,
-              content: (
-                <div className="-mx-4">
-                  <DataTable label="Usuários" columns={USER_COLUMNS} rows={USERS} rowKey={(u) => u.email} pageSize={6} />
-                </div>
-              ),
+              content: <UsersTab creating={creating && tab === "users"} onCreatingChange={setCreating} />,
             },
             {
               value: "technicians",
@@ -219,7 +184,8 @@ export function RegistersPage() {
       </Card>
 
       <Modal
-        open={creating}
+        // Usuários têm formulário próprio, que grava de verdade; os outros cadastros seguem em demonstração.
+        open={creating && tab !== "users"}
         onOpenChange={setCreating}
         title={`Novo: ${newLabel}`}
         footer={

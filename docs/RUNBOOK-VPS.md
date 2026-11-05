@@ -1,79 +1,63 @@
 # Runbook: VPS e deploy
 
-**Estado em 05/11/2026: nada disto foi executado.** Os scripts passaram por `bash -n` e `shellcheck`, e o Compose de produção por `docker compose config`, mas ainda não existe VPS. O primeiro deploy de verdade vai provavelmente achar problemas; corrija aqui o que achar.
+**Estado em 05/11/2026:** o H2D roda na VPS Hostinger (KVM 2, Ubuntu 24.04), num stack do Portainer que compila direto do Git. Está em `https://h2d.187-127-0-175.sslip.io` (domínio temporário; troque pelo definitivo quando existir).
 
-## O que você precisa providenciar
+## Como é o desenho
 
-1. **VPS** Ubuntu 22.04 ou 24.04, 2 vCPU e 8 GB (KVM 2 da Hostinger).
-2. **Domínio** com um registro `A` apontando para o IP da VPS. Sem isso o Caddy não consegue o certificado HTTPS.
-3. **Chave SSH de deploy**, só para este uso: `ssh-keygen -t ed25519 -f h2d-deploy -C deploy`.
-4. **Token do GHCR na VPS**, com permissão só de leitura de pacotes (`read:packages`), porque as imagens são privadas.
+- **Proxy:** um único Caddy recebe as portas 80 e 443, gera o HTTPS e encaminha pela rede Docker externa `proxy`. Os apps não publicam portas. A configuração dele fica em `/opt/proxy/caddy/Caddyfile`, na VPS, fora deste repositório.
+- **Stack `h2d-ti`** ([`docker-compose.yml`](../docker-compose.yml), na raiz): `h2d-db` (pgvector), `h2d-api`, `h2d-web` (SPA + Caddy interno em HTTP na 8080) e `h2d-n8n`. Só `h2d-web` e `h2d-n8n` entram na rede `proxy`.
+- **Imagens:** o Portainer faz o build (`pull_policy: build`). Nada de GHCR nem SSH.
+- **Segredos:** só em *Environment variables* do stack, no Portainer. Nunca no Git. Os nomes estão no [`.env.example`](../.env.example).
+- **Outros projetos na mesma VPS** (HispanoPro, OrcaGenius, SteelDeck, Portainer): não os altere por causa do H2D.
 
-## 1. Preparar a VPS (uma vez)
+## Primeiro deploy (ou refazer do zero)
 
-Copie [`infra/scripts/harden-vps.sh`](../infra/scripts/harden-vps.sh) para a VPS e rode como root, com a chave **pública**:
-
-```bash
-DEPLOY_PUBKEY="$(cat h2d-deploy.pub)" bash harden-vps.sh
-```
-
-Antes de fechar a sessão, abra outro terminal e confirme que `ssh -i h2d-deploy deploy@<ip>` entra sem senha. O script desliga o login por senha e o login do root.
-
-## 2. Configurar o servidor
-
-Como usuário `deploy`:
+1. Portainer → Stacks → Add stack → **Repository**.
+2. URL `https://github.com/danubiolagoa/h2d-ti`, referência `refs/heads/main`, caminho `docker-compose.yml`. O repositório é privado: ative *Authentication* com um token do GitHub **só de leitura** (fine-grained, Contents: Read-only).
+3. Variáveis: `POSTGRES_PASSWORD`, `H2D_DB_PASSWORD`, `N8N_DB_PASSWORD`, `JWT_SECRET`, `N8N_ENCRYPTION_KEY`, `N8N_DOMAIN`. Gere cada segredo com `python -c "import secrets; print(secrets.token_urlsafe(48))"`.
+4. **Deploy the stack.** O primeiro build leva alguns minutos.
+5. Crie o administrador, no console do `h2d-api` (senha de 6+ caracteres, com letras e números):
 
 ```bash
-echo "<token-read-packages>" | docker login ghcr.io -u <seu-usuario-github> --password-stdin
-cp /opt/h2d/infra/.env.production.example /opt/h2d/.env   # depois do primeiro envio da infra
+ADMIN_EMAIL=voce@empresa.com ADMIN_NAME="Seu Nome" ADMIN_PASSWORD='sua-senha' python -m h2d.create_admin
 ```
 
-Edite `/opt/h2d/.env` trocando **todos** os valores. Guarde uma cópia no gerenciador de senhas: sem ela o banco não é recuperável.
+6. Os demais usuários são criados no painel: **Administração → Cadastros → Novo: usuário**.
 
-## 3. Segredos e variáveis no GitHub
+## Atualizar
 
-Em Settings → Secrets and variables → Actions:
+Faça merge na `main` e, no Portainer, Stacks → `h2d-ti` → **Pull and redeploy**. Confira `https://<domínio>/api/ready`. As migrações rodam sozinhas quando a API sobe.
 
-| Nome | Tipo | Valor |
-| --- | --- | --- |
-| `VPS_HOST` | segredo | IP ou nome da VPS |
-| `VPS_SSH_KEY` | segredo | chave **privada** de deploy |
-| `VPS_KNOWN_HOSTS` | segredo | saída de `ssh-keyscan -t ed25519 <ip>`, conferida com a impressão digital do painel da Hostinger |
-| `DEPLOY_ENABLED` | variável | `true` (só depois de tudo acima) |
+**Armadilhas já vistas:**
+- **Bind mount com caminho relativo não funciona** no Portainer: o Docker cria uma pasta vazia no lugar do arquivo. Por isso o script de init do banco vai dentro da imagem (`infra/db/Dockerfile`). Não use `./arquivo:/destino` no compose.
+- O script de init do banco roda **só na primeira criação do volume**. Mudar a senha do banco depois não altera a que o Postgres já guardou.
+- Se refizer o stack, **não marque** a remoção de volumes, a menos que queira apagar o banco.
 
-**Aprovação do deploy.** O ambiente `production` existe, mas o GitHub recusou exigir revisor (testado em 05/11/2026: "billing plan does not support the required reviewers protection rule"). Por isso o deploy só roda quando alguém dispara o workflow à mão, e quem tem permissão de escrita no repositório consegue fazê-lo. Se o repositório virar público ou ganhar plano pago, ative o revisor no ambiente.
+## Rollback
 
-## 4. Primeiro deploy
+O rollback não desfaz migrações. Toda migração precisa funcionar também com o código da versão anterior: primeiro adicione, depois use, só então remova. Para voltar o código, reverta o commit na `main` e faça **Pull and redeploy**.
 
-Rode o workflow **Deploy** manualmente (Actions → Deploy → Run workflow; todo deploy é assim). Ele publica as imagens, copia `infra/` para `/opt/h2d/infra` e roda [`deploy.sh`](../infra/scripts/deploy.sh), que baixa as imagens, aplica as migrações, sobe tudo e confere `/api/ready` pelo próprio domínio. O primeiro certificado pode levar um ou dois minutos.
+## n8n
 
-Criar o primeiro administrador, sem dados de demonstração:
-
-```bash
-cd /opt/h2d && IMAGE_TAG=$(cat .deployed-tag) docker compose --env-file .env -f infra/compose.prod.yaml run --rm \
-  -e ADMIN_EMAIL=voce@empresa.com -e ADMIN_NAME="Seu Nome" -e ADMIN_PASSWORD='uma-senha-longa' \
-  api python -m h2d.create_admin
-```
-
-Para uma demonstração com dados fictícios, use `ALLOW_DEMO_SEED=true` e `SEED_PASSWORD` no `.env` e rode `python -m h2d.seed` do mesmo modo. **Não use com dados reais:** todos os usuários do seed compartilham a mesma senha.
-
-## 5. Rollback
-
-O `deploy.sh` volta sozinho para a versão anterior se `/api/ready` não responder. Para voltar à mão, rode o workflow de novo com um commit anterior, ou na VPS:
-
-```bash
-cd /opt/h2d && ./infra/scripts/deploy.sh <tag-anterior>
-```
-
-**O rollback não desfaz migrações.** Toda migração precisa funcionar também com o código da versão anterior: primeiro adicione, depois use, só então remova.
+Sobe junto, com banco próprio (`n8n`) e sem endereço público (decisão D4). Se for preciso abrir o editor, o Caddy da VPS precisa de um bloco para `N8N_DOMAIN` apontando para `h2d-n8n:5678`, de preferência com senha ou restrito a um IP. Quem abrir primeiro vira dono: crie o usuário na hora. Guarde `N8N_ENCRYPTION_KEY` fora da VPS.
 
 ## Checklist dos critérios de saída da F1
 
-- [ ] Login do seed funciona em `https://<domínio>`
-- [ ] Merge na `main` chega à VPS com `/api/ready` verde
-- [ ] Varredura de portas de fora da VPS só mostra 22, 80 e 443 (`nmap -Pn <ip>`)
-- [ ] `ssh root@<ip>` e login por senha são recusados
+- [x] Site e `/api/ready` respondem 200 em HTTPS
+- [ ] Login do administrador funciona em `https://<domínio>`
+- [ ] Banco inacessível de fora: varredura de portas (`nmap -Pn 187.127.0.175`) sem a 5432
+- [ ] Merge na `main` chega à VPS com `/api/ready` verde (hoje com *Pull and redeploy* manual)
+
+## Pendências de segurança da VPS
+
+- Portainer exposto em HTTP na porta 9001 e na versão 2.39 (a 2.45 corrige falhas críticas).
+- Outros serviços da VPS publicam portas abertas (8000, 8081, 3001, 8090) sem firewall da Hostinger.
+- Backup externo (F7) ainda não existe.
+
+## Desenho antigo (sem uso)
+
+`infra/compose.prod.yaml`, `infra/scripts/deploy.sh`, `infra/scripts/harden-vps.sh` e o workflow `deploy.yml` descrevem um deploy por SSH com Caddy próprio nas portas 80 e 443. **Não rode o `harden-vps.sh` nesta VPS:** ele bloqueia o login do root, e há outros projetos e o Coolify antigo dependendo desse acesso.
 
 ## Ainda não existe
 
-Backup (F7), n8n (F4), worker (F2), monitoramento (cortado até 18/11).
+Backup (F7), worker (F2), monitoramento (cortado até 18/11).
