@@ -28,6 +28,10 @@ WORKDIR /app
 COPY --from=builder /opt/venv /opt/venv
 COPY migrations ./migrations
 COPY alembic.ini ./
-RUN useradd --system --no-create-home h2d
+RUN useradd --system --no-create-home h2d     && mkdir -p /data/uploads /models     && chown -R h2d /data /models
 USER h2d
-CMD ["uvicorn", "h2d.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+# O modelo de embeddings (ADR-003) vem baixado na imagem: a primeira busca não espera download
+# e o servidor não depende da internet para rodar.
+RUN python -c "from fastembed import TextEmbedding; TextEmbedding('sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2', cache_dir='/models')"
+# Um processo só: o modelo fica carregado uma vez (memória). O worker roda em outro container.
+CMD ["uvicorn", "h2d.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     seed_password: SecretStr | None = None
     # Chave do OpenRouter (embeddings e modelo de linguagem, F2/F3). Opcional até o código usá-la.
     openrouter_api_key: SecretStr | None = None
+    # Arquivos originais enviados na ingestão (volume compartilhado entre API e worker).
+    upload_dir: str = "/data/uploads"
+    # Cache do modelo de embeddings (ADR-003). Na imagem de produção o modelo já vem baixado.
+    fastembed_cache_dir: str = "/models"
     # O seed cria usuários com uma senha única e conhecida. Em produção só roda se for
     # pedido de forma explícita, e só serve para demonstração com dados fictícios.
     allow_demo_seed: bool = False

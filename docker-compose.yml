@@ -8,6 +8,20 @@ name: h2d
 x-restart: &restart
   restart: unless-stopped
 
+# API e worker usam a mesma imagem (o modelo de embeddings já vem dentro dela).
+x-api-build: &api-build
+  context: ./apps/api
+  target: prod
+
+x-api-env: &api-env
+  ENVIRONMENT: production
+  DATABASE_URL: postgresql+asyncpg://h2d:${H2D_DB_PASSWORD}@db:5432/h2d
+  JWT_SECRET: ${JWT_SECRET:?defina no Portainer}
+  COOKIE_SECURE: "true"
+  ALLOW_DEMO_SEED: ${ALLOW_DEMO_SEED:-false}
+  SEED_PASSWORD: ${SEED_PASSWORD:-}
+  OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+
 services:
   db:
     <<: *restart
@@ -40,24 +54,18 @@ services:
     <<: *restart
     container_name: h2d-api
     pull_policy: build
-    build:
-      context: ./apps/api
-      target: prod
-    environment:
-      ENVIRONMENT: production
-      DATABASE_URL: postgresql+asyncpg://h2d:${H2D_DB_PASSWORD}@db:5432/h2d
-      JWT_SECRET: ${JWT_SECRET:?defina no Portainer}
-      COOKIE_SECURE: "true"
-      ALLOW_DEMO_SEED: ${ALLOW_DEMO_SEED:-false}
-      SEED_PASSWORD: ${SEED_PASSWORD:-}
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+    image: h2d-api:prod
+    build: *api-build
+    environment: *api-env
     # As migrações são idempotentes e só adicionam: rodam a cada subida, antes da API.
     command:
       - sh
       - -c
-      - alembic upgrade head && exec uvicorn h2d.main:app --host 0.0.0.0 --port 8000 --workers 2 --proxy-headers --forwarded-allow-ips='*'
+      - alembic upgrade head && exec uvicorn h2d.main:app --host 0.0.0.0 --port 8000 --workers 1 --proxy-headers --forwarded-allow-ips='*'
     expose:
       - "8000"
+    volumes:
+      - h2d_uploads:/data/uploads
     networks: [interna]
     healthcheck:
       test:
@@ -72,7 +80,26 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    mem_limit: 768m
+    # Guarda o modelo de embeddings na memória depois da primeira busca.
+    mem_limit: 1g
+
+  # Processa a fila de ingestão: lê o arquivo enviado, gera trechos e vetores e publica a versão.
+  worker:
+    <<: *restart
+    container_name: h2d-worker
+    pull_policy: build
+    image: h2d-api:prod
+    build: *api-build
+    environment: *api-env
+    command: ["python", "-m", "h2d.worker"]
+    volumes:
+      - h2d_uploads:/data/uploads
+    networks: [interna]
+    depends_on:
+      api:
+        condition: service_healthy
+    # Medido no desenvolvimento: ~970 MB com o modelo carregado. Ajustar com docker stats na VPS.
+    mem_limit: 1536m
 
   web:
     <<: *restart
@@ -146,4 +173,5 @@ networks:
 
 volumes:
   h2d_pgdata:
+  h2d_uploads:
   n8n_data:

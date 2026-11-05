@@ -7,8 +7,9 @@ import hashlib
 import re
 from dataclasses import dataclass
 
-# O MiniLM lê poucos tokens por trecho (ADR-003): trechos curtos, na casa de 100 a 120 palavras.
-DEFAULT_MAX_WORDS = 110
+# O MiniLM lê só 128 tokens por trecho (ADR-003). Medido nos manuais: com 110 palavras, 19 de 101
+# trechos passavam disso; com 60, só 2 de 121.
+DEFAULT_MAX_WORDS = 60
 
 _HEADING = re.compile(r"^(#{1,6})\s+(.*\S)\s*$")
 _FENCE = re.compile(r"^\s*(```|~~~)")

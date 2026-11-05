@@ -2,7 +2,7 @@ from fastapi import APIRouter, FastAPI
 
 from h2d import __version__
 from h2d.config import get_settings
-from h2d.routers import auth, health, users
+from h2d.routers import auth, health, kb, users
 
 
 def create_app() -> FastAPI:
@@ -21,6 +21,7 @@ def create_app() -> FastAPI:
     api.include_router(health.router)
     api.include_router(auth.router)
     api.include_router(users.router)
+    api.include_router(kb.router)
     app.include_router(api)
     return app
 

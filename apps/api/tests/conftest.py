@@ -1,4 +1,5 @@
 import os
+import tempfile
 from collections.abc import AsyncIterator
 from pathlib import Path
 
@@ -11,6 +12,7 @@ os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 os.environ["JWT_SECRET"] = "segredo-de-teste-com-mais-de-32-caracteres"
 os.environ["COOKIE_SECURE"] = "true"
 os.environ["SEED_PASSWORD"] = "senha-de-teste-do-seed"
+os.environ["UPLOAD_DIR"] = str(Path(tempfile.gettempdir()) / "h2d-test-uploads")
 
 import httpx  # noqa: E402
 import pytest  # noqa: E402
@@ -21,8 +23,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine  # noqa: E4
 from sqlalchemy.pool import NullPool  # noqa: E402
 
 from h2d.db import get_session  # noqa: E402
+from h2d.kb.embeddings import FakeEmbedder  # noqa: E402
 from h2d.main import create_app  # noqa: E402
 from h2d.models import Role, User  # noqa: E402
+from h2d.routers.kb import get_embedder_dep  # noqa: E402
 from h2d.security import hash_password  # noqa: E402
 
 API_DIR = Path(__file__).resolve().parent.parent
@@ -68,6 +72,8 @@ def app(session: AsyncSession):
         yield session
 
     application.dependency_overrides[get_session] = override_session
+    # Nos testes não se baixa nem se roda o modelo de verdade.
+    application.dependency_overrides[get_embedder_dep] = FakeEmbedder
     return application
 
 

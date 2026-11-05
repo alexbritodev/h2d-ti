@@ -91,24 +91,24 @@ Progresso
 
 - [x] `TL` Fazer o spike de embeddings e escrever o [ADR-003](adr/0003-embeddings.md): MiniLM multilíngue local, 384 dimensões
 - [x] `TL` Migrar o grupo Conhecimento (migração 0002: `kb_documents`, versões, `kb_chunks` com `vector(384)`, HNSW e `tsvector`, `ingestion_jobs`)
-- [ ] `TL` Configurar o worker com Procrastinate
-- [ ] `TL` Implementar registro, SHA-256 e guarda do arquivo original
-- [ ] `TL` Implementar parsing com Docling e limpeza
+- [x] `TL` Configurar o worker: **sem Procrastinate**; a fila é a própria tabela `ingestion_jobs`, com `SKIP LOCKED` e reenfileiramento de job travado (`h2d.worker`, serviço `worker` no compose)
+- [x] `TL` Implementar registro, SHA-256 e guarda do arquivo original (volume `h2d_uploads`)
+- [ ] `TL` Implementar parsing com Docling e limpeza: **hoje só Markdown e texto** (`.md`, `.txt`); PDF e DOCX dependem de decidir o Docling
 - [x] `TL` Implementar chunking por título, sem partir tabelas nem passos numerados (`h2d.kb.text`, testado nos 15 manuais; falta medir o limite de tokens do MiniLM e ligar ao pipeline)
-- [ ] `TL` Implementar embeddings em lote, publicação atômica e arquivamento
-- [ ] `TL` Implementar busca híbrida com RRF, filtro de visibilidade e varredura iterativa
-- [ ] `TL` Criar endpoints de upload, jobs, reindexação e busca, com limite de tipo e tamanho
+- [x] `TL` Implementar embeddings em lote, publicação atômica e arquivamento
+- [x] `TL` Implementar busca híbrida com RRF, filtro de visibilidade e varredura iterativa
+- [x] `TL` Criar endpoints de upload, jobs, reindexação e busca, com limite de tipo e tamanho (`/api/kb/*`)
 - [ ] `A` Criar a tela de ingestão, com jobs e versões
 - [ ] `A` Criar a tela de base de conhecimento
 - [x] `B` Escrever 15 manuais fictícios (12 públicos e 3 restritos à TI), só locais em `manuais/` (fora do Git, enviados pela tela de ingestão). `B` ainda revisa o conteúdo
 - [ ] `B` Criar o conjunto de avaliação v0, com 30 perguntas
-- [ ] `TL` Medir memória com `docker stats` e definir limites por container
+- [x] `TL` Medir memória com `docker stats` (desenvolvimento): API ~700 MB e worker ~970 MB com o modelo carregado. Falta medir na VPS e decidir sobre a KVM 4
 
 **Critérios de saída**
-- [ ] Arquivo duplicado não reprocessa; versão nova arquiva a anterior após publicar
-- [ ] Falha no job não deixa versão parcial ativa, e o motivo aparece na tela
-- [ ] Teste automatizado: usuário comum nunca recebe trecho restrito à TI
-- [ ] Linha de base de acerto top-k registrada
+- [x] Arquivo duplicado não reprocessa; versão nova arquiva a anterior após publicar (testado)
+- [ ] Falha no job não deixa versão parcial ativa (testado), e o motivo aparece na tela (falta a tela)
+- [x] Teste automatizado: usuário comum nunca recebe trecho restrito à TI (busca, trecho citado e biblioteca; conferido também com o modelo real: 0 trechos de TI para o usuário comum)
+- [x] Linha de base de acerto top-k registrada (conjunto de 22 perguntas escritas por `TL`, modelo real, 15 manuais): top-1 13/22, top-3 17/22, top-5 20/22. Abaixo da meta: ver melhorias em [ADR-003](adr/0003-embeddings.md)
 
 ## F3. Chat RAG
 
