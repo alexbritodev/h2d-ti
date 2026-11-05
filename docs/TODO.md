@@ -89,12 +89,12 @@ Progresso
 
 ## F2. Ingestão
 
-- [ ] `TL` Fazer o spike de embeddings e escrever o ADR-002
-- [ ] `TL` Migrar o grupo Conhecimento (índice HNSW, `tsvector`, `pg_trgm`)
+- [x] `TL` Fazer o spike de embeddings e escrever o [ADR-003](adr/0003-embeddings.md): MiniLM multilíngue local, 384 dimensões
+- [x] `TL` Migrar o grupo Conhecimento (migração 0002: `kb_documents`, versões, `kb_chunks` com `vector(384)`, HNSW e `tsvector`, `ingestion_jobs`)
 - [ ] `TL` Configurar o worker com Procrastinate
 - [ ] `TL` Implementar registro, SHA-256 e guarda do arquivo original
 - [ ] `TL` Implementar parsing com Docling e limpeza
-- [ ] `TL` Implementar chunking por título, sem partir tabelas nem passos numerados
+- [x] `TL` Implementar chunking por título, sem partir tabelas nem passos numerados (`h2d.kb.text`, testado nos 15 manuais; falta medir o limite de tokens do MiniLM e ligar ao pipeline)
 - [ ] `TL` Implementar embeddings em lote, publicação atômica e arquivamento
 - [ ] `TL` Implementar busca híbrida com RRF, filtro de visibilidade e varredura iterativa
 - [ ] `TL` Criar endpoints de upload, jobs, reindexação e busca, com limite de tipo e tamanho
