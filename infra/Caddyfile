@@ -1,5 +1,16 @@
-# Serve a SPA e encaminha /api. O banco e o n8n nunca passam por aqui (divergências D2 e D4).
-{$H2D_DOMAIN:localhost} {
+# Caddy interno do container "h2d-web": serve a SPA e encaminha /api. Fala HTTP puro na 8080.
+# O HTTPS e o certificado ficam com o Caddy da VPS, que recebe as portas 80 e 443.
+# O banco e o n8n nunca passam por aqui (divergências D2 e D4).
+{
+	auto_https off
+	admin off
+	servers {
+		# Confia nos cabeçalhos X-Forwarded-* que vêm do Caddy da VPS (rede Docker privada).
+		trusted_proxies static private_ranges
+	}
+}
+
+:8080 {
 	encode zstd gzip
 
 	header {
@@ -10,13 +21,18 @@
 		-Server
 	}
 
-	# Webhooks do n8n chegam à API pela rede interna do Docker, nunca por fora.
+	# Usado pelo healthcheck do container.
+	handle /healthz {
+		respond "ok" 200
+	}
+
+	# Webhooks do n8n chegam à API pela rede interna do Docker (h2d-api:8000), nunca por fora.
 	handle /api/hooks/* {
 		respond 404
 	}
 
 	handle /api/* {
-		reverse_proxy api:8000
+		reverse_proxy h2d-api:8000
 	}
 
 	handle {

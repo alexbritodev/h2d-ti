@@ -1,0 +1,142 @@
+# Stack de produção para o Portainer (Repository, branch main, "Compose path": docker-compose.yml).
+# O Portainer faz o build a partir do Git. Os valores das variáveis ${...} ficam em
+# "Environment variables" do stack, nunca no repositório (modelo em .env.example).
+# O Caddy da VPS recebe o domínio, gera o HTTPS e encaminha para h2d-web:8080 pela rede "proxy".
+# O desenvolvimento local usa compose.yaml, não este arquivo.
+name: h2d
+
+x-restart: &restart
+  restart: unless-stopped
+
+services:
+  db:
+    <<: *restart
+    image: pgvector/pgvector:pg17
+    container_name: h2d-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina no Portainer}
+      H2D_DB_PASSWORD: ${H2D_DB_PASSWORD:?defina no Portainer}
+      N8N_DB_PASSWORD: ${N8N_DB_PASSWORD:?defina no Portainer}
+    volumes:
+      # pg17: o volume vai em /var/lib/postgresql/data (só o pg18 usa /var/lib/postgresql).
+      - h2d_pgdata:/var/lib/postgresql/data
+      # Roda só na primeira criação do volume: cria os bancos h2d e n8n.
+      - ./infra/db/init/01-databases.sh:/docker-entrypoint-initdb.d/01-databases.sh:ro
+    networks: [interna]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d h2d"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    # Estimativa. Medir com docker stats na F2 e ajustar.
+    mem_limit: 1g
+
+  api:
+    <<: *restart
+    container_name: h2d-api
+    build:
+      context: ./apps/api
+      target: prod
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql+asyncpg://h2d:${H2D_DB_PASSWORD}@db:5432/h2d
+      JWT_SECRET: ${JWT_SECRET:?defina no Portainer}
+      COOKIE_SECURE: "true"
+      ALLOW_DEMO_SEED: ${ALLOW_DEMO_SEED:-false}
+      SEED_PASSWORD: ${SEED_PASSWORD:-}
+    # As migrações são idempotentes e só adicionam: rodam a cada subida, antes da API.
+    command:
+      - sh
+      - -c
+      - alembic upgrade head && exec uvicorn h2d.main:app --host 0.0.0.0 --port 8000 --workers 2 --proxy-headers --forwarded-allow-ips='*'
+    expose:
+      - "8000"
+    networks: [interna]
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://localhost:8000/api/ready', timeout=2)
+      interval: 10s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+    depends_on:
+      db:
+        condition: service_healthy
+    mem_limit: 768m
+
+  web:
+    <<: *restart
+    container_name: h2d-web
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: prod
+    expose:
+      - "8080"
+    networks: [proxy, interna]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    depends_on:
+      api:
+        condition: service_healthy
+    mem_limit: 128m
+
+  n8n:
+    <<: *restart
+    # Versão fixa. Atualize de propósito, lendo as notas de versão.
+    image: docker.n8n.io/n8nio/n8n:2.32.5
+    container_name: h2d-n8n
+    environment:
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: db
+      DB_POSTGRESDB_PORT: "5432"
+      DB_POSTGRESDB_DATABASE: n8n
+      DB_POSTGRESDB_USER: n8n
+      DB_POSTGRESDB_PASSWORD: ${N8N_DB_PASSWORD}
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?defina no Portainer}
+      N8N_HOST: ${N8N_DOMAIN:?defina no Portainer}
+      N8N_PROTOCOL: https
+      N8N_PORT: "5678"
+      # Atrás de um proxy (o Caddy da VPS). WEBHOOK_URL vale até a 2.34; N8N_WEBHOOK_URL, da 2.35 em diante.
+      N8N_PROXY_HOPS: "1"
+      WEBHOOK_URL: https://${N8N_DOMAIN}/
+      N8N_WEBHOOK_URL: https://${N8N_DOMAIN}/
+      GENERIC_TIMEZONE: America/Sao_Paulo
+      TZ: America/Sao_Paulo
+      N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: "true"
+    volumes:
+      - n8n_data:/home/node/.n8n
+    expose:
+      - "5678"
+    # Na rede "proxy" só para o Caddy da VPS alcançar o editor, se você decidir expô-lo.
+    networks: [proxy, interna]
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - require('http').get('http://127.0.0.1:5678/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    depends_on:
+      db:
+        condition: service_healthy
+    mem_limit: 768m
+
+networks:
+  proxy:
+    external: true
+  interna:
+
+volumes:
+  h2d_pgdata:
+  n8n_data:

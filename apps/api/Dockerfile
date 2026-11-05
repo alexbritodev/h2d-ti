@@ -14,12 +14,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends libatomic1 \
 COPY src ./src
 RUN uv sync --frozen
 
-FROM base AS prod
-ENV ENVIRONMENT=production
+# O uv só serve para instalar as dependências. A imagem final parte de uma base limpa e
+# recebe só o ambiente pronto, sem o uv: menos superfície de ataque e imagem menor.
+FROM base AS builder
 COPY src ./src
+RUN uv sync --frozen --no-dev --no-editable
+
+FROM python:3.12-slim AS prod
+ENV PATH=/opt/venv/bin:$PATH \
+    PYTHONUNBUFFERED=1 \
+    ENVIRONMENT=production
+WORKDIR /app
+COPY --from=builder /opt/venv /opt/venv
 COPY migrations ./migrations
 COPY alembic.ini ./
-RUN uv sync --frozen --no-dev --no-editable
 RUN useradd --system --no-create-home h2d
 USER h2d
 CMD ["uvicorn", "h2d.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
