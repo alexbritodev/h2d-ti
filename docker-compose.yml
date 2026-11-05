@@ -11,7 +11,12 @@ x-restart: &restart
 services:
   db:
     <<: *restart
-    image: pgvector/pgvector:pg17
+    # O script de init (cria os bancos h2d e n8n na primeira subida do volume) vai dentro da
+    # imagem. Nada de bind mount com caminho relativo: no Portainer ele vira uma pasta vazia.
+    build:
+      context: .
+      dockerfile: infra/db/Dockerfile
+    image: h2d-db:pg17
     container_name: h2d-db
     environment:
       POSTGRES_USER: postgres
@@ -21,8 +26,6 @@ services:
     volumes:
       # pg17: o volume vai em /var/lib/postgresql/data (só o pg18 usa /var/lib/postgresql).
       - h2d_pgdata:/var/lib/postgresql/data
-      # Roda só na primeira criação do volume: cria os bancos h2d e n8n.
-      - ./infra/db/init/01-databases.sh:/docker-entrypoint-initdb.d/01-databases.sh:ro
     networks: [interna]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d h2d"]
