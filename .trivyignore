@@ -1,0 +1,8 @@
+# Exceções do Trivy. Cada linha precisa de justificativa e de prazo: depois do prazo ela
+# deixa de valer e o CI volta a falhar, o que força a reavaliação.
+
+# go-jose no binário do Caddy (imagem oficial caddy:2-alpine): negação de serviço por
+# parâmetros RSA malformados em JWKs. Já tem correção (4.1.6), mas a imagem oficial ainda
+# não a incorpora. O Caddy aqui só usa JWS no ACME, com a própria chave de conta, e não
+# lê JWKs enviados por terceiros. Reavaliar quando sair uma imagem nova do Caddy.
+CVE-2026-116587 exp:2026-12-05

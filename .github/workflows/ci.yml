@@ -127,11 +127,32 @@ jobs:
         with:
           context: apps/api
           target: prod
-          push: false
+          load: true
+          tags: h2d-api:ci
       - name: Web
         uses: docker/build-push-action@v7
         with:
           context: .
           file: apps/web/Dockerfile
           target: prod
-          push: false
+          load: true
+          tags: h2d-web:ci
+      # Falha só com problemas graves que já têm correção; exceções ficam em .trivyignore.
+      - name: Trivy na API
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: h2d-api:ci
+          scanners: vuln
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+          trivyignores: .trivyignore
+      - name: Trivy na web
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: h2d-web:ci
+          scanners: vuln
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+          trivyignores: .trivyignore

@@ -1,0 +1,75 @@
+# Produção na VPS. Roda de /opt/h2d com o .env ao lado (modelo em infra/.env.production.example).
+# O deploy (infra/scripts/deploy.sh) escolhe a versão das imagens por IMAGE_TAG.
+# O n8n e o worker entram nas fases F4 e F2; não existem ainda.
+name: h2d
+
+x-restart: &restart
+  restart: unless-stopped
+
+services:
+  db:
+    <<: *restart
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina no .env}
+      H2D_DB_PASSWORD: ${H2D_DB_PASSWORD:?defina no .env}
+      N8N_DB_PASSWORD: ${N8N_DB_PASSWORD:?defina no .env}
+    # Sem "ports": o banco só existe dentro da rede do Compose, nunca no host nem na internet.
+    volumes:
+      - h2d_pgdata:/var/lib/postgresql/data
+      - ./db/init/01-databases.sh:/docker-entrypoint-initdb.d/01-databases.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d h2d"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    # Estimativa. Medir com docker stats na F2 e ajustar.
+    mem_limit: 2g
+
+  api:
+    <<: *restart
+    image: ghcr.io/${GHCR_OWNER:?defina no .env}/h2d-ti-api:${IMAGE_TAG:?defina IMAGE_TAG}
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql+asyncpg://h2d:${H2D_DB_PASSWORD}@db:5432/h2d
+      JWT_SECRET: ${JWT_SECRET:?defina no .env}
+      COOKIE_SECURE: "true"
+      ALLOW_DEMO_SEED: ${ALLOW_DEMO_SEED:-false}
+      SEED_PASSWORD: ${SEED_PASSWORD:-}
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://localhost:8000/api/ready', timeout=2)
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    depends_on:
+      db:
+        condition: service_healthy
+    mem_limit: 1g
+
+  web:
+    <<: *restart
+    image: ghcr.io/${GHCR_OWNER}/h2d-ti-web:${IMAGE_TAG}
+    environment:
+      H2D_DOMAIN: ${H2D_DOMAIN:?defina no .env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      # Guarda os certificados: sem isso, cada recriação pede certificado novo e esbarra no limite.
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+    mem_limit: 256m
+
+volumes:
+  h2d_pgdata:
+  caddy_data:
+  caddy_config:

@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     jwt_ttl_minutes: int = Field(default=480, gt=0)
     cookie_secure: bool = True
     seed_password: SecretStr | None = None
+    # O seed cria usuários com uma senha única e conhecida. Em produção só roda se for
+    # pedido de forma explícita, e só serve para demonstração com dados fictícios.
+    allow_demo_seed: bool = False
 
     @model_validator(mode="after")
     def _production_is_safe(self) -> Self:

@@ -4,10 +4,21 @@ updates:
     directory: /apps/api
     schedule:
       interval: weekly
+    ignore:
+      # O uv_build precisa acompanhar o uv instalado nas imagens (Dockerfile).
+      - dependency-name: uv-build
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
   - package-ecosystem: npm
     directory: /apps/web
     schedule:
       interval: weekly
+    ignore:
+      # openapi-typescript e typescript-eslint ainda não aceitam o TypeScript 7.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      # Os tipos acompanham o Node das imagens (22); sem isso, aceitam APIs que não existem lá.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
@@ -18,3 +29,9 @@ updates:
       - /apps/web
     schedule:
       interval: weekly
+    ignore:
+      # Troca de versão principal do Node, do Python e do Caddy se decide à mão, com teste.
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
+      - dependency-name: python
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]

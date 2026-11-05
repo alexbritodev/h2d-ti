@@ -160,8 +160,11 @@ async def _seed_technicians(
 
 async def run_seed(session: AsyncSession) -> None:
     settings = get_settings()
-    if settings.environment == "production":
-        raise SeedNotAllowedError("O seed não roda em produção")
+    if settings.environment == "production" and not settings.allow_demo_seed:
+        raise SeedNotAllowedError(
+            "O seed não roda em produção. Para uma demonstração com dados fictícios, "
+            "defina ALLOW_DEMO_SEED=true; para dados reais, use h2d.create_admin."
+        )
     if settings.seed_password is None or not settings.seed_password.get_secret_value():
         raise SeedNotAllowedError("Defina SEED_PASSWORD no .env")
 

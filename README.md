@@ -10,6 +10,8 @@ Central de atendimento de TI em que um chatbot com RAG resolve o que os manuais 
 - [Plano de implementação](docs/PLANO-IMPLEMENTACAO.md): fases, calendário, cortes e riscos
 - [Todo list](docs/TODO.md): tarefas por fase e critérios de saída
 - [Decisões de arquitetura](docs/adr/)
+- [Modelo de dados](docs/MODELO-DADOS.md)
+- [Runbook da VPS e do deploy](docs/RUNBOOK-VPS.md)
 
 ## Como rodar
 

@@ -22,60 +22,67 @@ Progresso
 
 ## F0. Decisões
 
+**Estado em 05/11/2026: 3 de 9 itens concluídos. O que falta depende de você ou do time e está nas issues indicadas.**
+
 - [x] `TL` Descobrir a data de entrega do curso: 18/11/2026
-- [ ] `TL` Dar acesso ao repositório a Darles e Hanover
-- [ ] `TL` Confirmar Python no backend com os colegas e escrever o ADR-001
-- [ ] `TL` Confirmar o plano do GitHub (repositório criado como privado)
-- [ ] `TL` Definir o canal de notificação e o volume esperado do piloto
-- [ ] `TL` Resolver as divergências D1 a D9 do plano
-- [ ] `TL` Combinar a divisão de tarefas conforme o que cada um domina
-- [ ] `TL` Contratar a VPS e registrar o domínio
-- [ ] `TL` Criar a conta no OpenRouter com limite de gasto
+- [x] `TL` Resolver as divergências D1 a D11 do plano ([ADR-002](adr/0002-divergencias-do-plano.md))
+- [x] `TL` Registrar as premissas do canal de notificação e do volume do piloto (ADR-002); a confirmação com o time de TI está em #12
+- [ ] `TL` Dar acesso ao repositório a Darles e Hanover (#6)
+- [ ] `TL` Confirmar Python no backend com os colegas; o [ADR-001](adr/0001-python-no-backend.md) segue como proposta (#7)
+- [ ] `TL` Decidir o plano do GitHub: no plano atual a proteção da `main` e a aprovação do ambiente não funcionam (#8)
+- [ ] `TL` Contratar a VPS e registrar o domínio (#9)
+- [ ] `TL` Criar a conta no OpenRouter com limite de gasto (#10)
+- [ ] `TL` Combinar a divisão de tarefas conforme o que cada um domina (#11)
 
 ## F1. Fundação
+
+**Estado em 05/11/2026: tudo o que roda sem VPS está feito e verificado. Faltam a proteção da `main`, o Projects e, principalmente, os 4 critérios de saída, que só fecham com a VPS (#13).**
 
 **Repositório e ambiente**
 - [x] `TL` Rodar `git init` e criar o repositório no GitHub
 - [x] `TL` Criar a estrutura do monorepo
-- [ ] `TL` Configurar proteção da `main` (CODEOWNERS e templates já criados)
+- [ ] `TL` Configurar proteção da `main`: bloqueada pelo plano do GitHub (#8). CODEOWNERS e templates já existem
 - [x] `B` Criar Makefile, `.env.example` e pre-commit com gitleaks
 - [x] `TL` Criar o Compose local (db, api, web), com init dos bancos `h2d` e `n8n`; o worker entra na F2
-- [ ] `TL` Criar o GitHub Projects e a milestone da fase
+- [x] `TL` Criar milestones F0 a F7, labels de área e as issues pendentes e da F2
+- [ ] `TL` Criar o GitHub Projects: o token da CLI não tem o escopo `project` (#14)
 
 **Backend**
 - [x] `TL` Estruturar FastAPI, SQLAlchemy, Alembic, `/api/health` e `/api/ready`
-- [ ] `TL` Revisar o modelo de dados completo, incluindo as tabelas da divergência D5
+- [x] `TL` Revisar o modelo de dados completo e as tabelas da D5 ([MODELO-DADOS.md](MODELO-DADOS.md))
 - [x] `TL` Migrar o grupo Cadastro e `audit_log`, com IDs UUID v7 gerados na aplicação
 - [x] `TL` Implementar auth com JWT em cookie, argon2 e papéis
 - [x] `B` Criar o seed de usuários, técnicos, habilidades, categorias e SLAs (prazos de SLA provisórios)
+- [x] `TL` Criar `h2d.create_admin` para o primeiro administrador em produção, e exigir `ALLOW_DEMO_SEED` para rodar o seed lá
 
 **Frontend**
 - [x] `A` Criar o projeto Vite com TanStack Router e Query e Tailwind
-- [ ] `A` Testar `shadcn add` (só o `components.json` existe; botão e campo foram escritos à mão)
+- [x] `A` Decidir sobre o shadcn: não usar o CLI, e remover o `components.json` (D11)
 - [x] `A` Criar `tokens.css` e validar o contraste dos dois temas (teste automatizado)
 - [x] `A` Montar o layout de ERP: menu por módulos, breadcrumbs, busca `Ctrl+K` e notificações
 - [x] `A` Criar o kit: badges, snippets, tabelas, abas, modais, painéis, gráficos e avisos
 - [x] `A` Criar as telas com dados de demonstração (divergência D10)
-- [ ] Todos: decidir se Cadastros, Auditoria e Configurações ganham backend ou saem do menu da demo
+- [ ] Todos: decidir se Cadastros ganha backend até 18/11; Auditoria e Configurações ficam com o selo (#15)
 - [x] `A` Criar a tela de login e a proteção de rotas por papel
 - [x] `A` Gerar o cliente a partir do OpenAPI
 
 **CI e VPS**
 - [x] `TL` Escrever o CI: lint, tipos, testes com pgvector, contrato, build e varredura de segurança
-- [ ] `TL` Confirmar o CI verde no GitHub (ainda não rodou lá)
-- [ ] `TL` Incluir varredura de imagens com Trivy
-- [x] `TL` Configurar Dependabot
-- [ ] `TL` Ativar secret scanning com push protection, se o repositório for público
-- [ ] `TL` Endurecer a VPS: SSH por chave, ufw, fail2ban e atualizações automáticas
+- [x] `TL` Confirmar o CI verde no GitHub (5 de 5 jobs na `main`, commit `b94bce5`)
+- [x] `TL` Incluir o Trivy no CI, testado localmente nos dois sentidos; a única exceção está em `.trivyignore`, com prazo até 05/12/2026
+- [x] `TL` Configurar Dependabot, ignorando saltos de versão que quebram (TypeScript 7, Node, Python)
+- [ ] `TL` Ativar secret scanning com push protection: só em repositório público (#8)
+- [x] `TL` Escrever `harden-vps.sh` (SSH só por chave, ufw, fail2ban, atualizações automáticas): passou em `shellcheck`, **nunca foi executado**
 - [x] `TL` Escrever o Caddyfile com TLS e cabeçalhos básicos (configuração validada, sem uso real)
-- [ ] `TL` Criar o Compose de produção
-- [ ] `TL` Configurar deploy via GHCR com aprovação manual e checagem de `/api/ready`
+- [x] `TL` Criar o Compose de produção: validado com `docker compose config`, **nunca subiu**
+- [x] `TL` Escrever o deploy via GHCR e `deploy.sh` com rollback e checagem de `/api/ready`: validado com `actionlint`, **nunca rodou**. Roda só por disparo manual, porque o GitHub não aplica aprovação de ambiente neste plano
+- [ ] `TL` Preparar a VPS e fazer o primeiro deploy, seguindo o [runbook](RUNBOOK-VPS.md) (#13)
 
 **Critérios de saída**
-- [ ] Login do seed funciona em HTTPS na VPS (local em HTTP: testado no navegador)
-- [ ] Mudança de contrato não commitada quebra o CI (detecção testada localmente)
-- [ ] Merge na `main` chega à VPS com `/api/ready` verde
-- [ ] Banco inacessível de fora da VPS (local: só em 127.0.0.1)
+- [ ] Login do seed funciona em HTTPS na VPS (local em HTTP: testado no navegador) (#13)
+- [ ] Mudança de contrato não commitada quebra o CI (o job passa com o contrato em dia; a detecção foi provada só localmente)
+- [ ] Merge na `main` chega à VPS com `/api/ready` verde (#13)
+- [ ] Banco inacessível de fora da VPS (o Compose de produção não publica a porta; falta testar com varredura de fora) (#13)
 
 ## F2. Ingestão
 

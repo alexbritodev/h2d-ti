@@ -1,0 +1,92 @@
+name: Deploy
+
+# Depois que o CI passa na main, as imagens são publicadas no GHCR sozinhas.
+# O deploy na VPS é SEMPRE manual: só roda quando alguém clica em "Run workflow", e ainda
+# exige DEPLOY_ENABLED=true. Isso substitui a aprovação do ambiente "production", que o
+# GitHub não oferece em repositório privado no plano Free. Quem tem permissão de escrita
+# no repositório consegue disparar o deploy. Enquanto a VPS não existe, ele é pulado.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  images:
+    name: Publicar imagens
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      tag: ${{ steps.vars.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - id: vars
+        run: |
+          echo "tag=${GITHUB_EVENT_SHA:0:12}" >> "$GITHUB_OUTPUT"
+          echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+        env:
+          GITHUB_EVENT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: API
+        uses: docker/build-push-action@v7
+        with:
+          context: apps/api
+          target: prod
+          push: true
+          tags: ghcr.io/${{ steps.vars.outputs.owner }}/h2d-ti-api:${{ steps.vars.outputs.tag }}
+      - name: Web
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          target: prod
+          push: true
+          tags: ghcr.io/${{ steps.vars.outputs.owner }}/h2d-ti-web:${{ steps.vars.outputs.tag }}
+
+  deploy:
+    name: Deploy na VPS
+    needs: images
+    if: github.event_name == 'workflow_dispatch' && vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - name: Preparar SSH
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          # A impressão digital do servidor vem do segredo: nada de aceitar qualquer host.
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+      - name: Enviar infra e publicar
+        run: |
+          ssh -o StrictHostKeyChecking=yes "deploy@${VPS_HOST}" 'mkdir -p /opt/h2d/infra'
+          scp -o StrictHostKeyChecking=yes -r infra/. "deploy@${VPS_HOST}:/opt/h2d/infra/"
+          ssh -o StrictHostKeyChecking=yes "deploy@${VPS_HOST}" \
+            "chmod +x /opt/h2d/infra/scripts/deploy.sh && /opt/h2d/infra/scripts/deploy.sh '${TAG}'"
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          TAG: ${{ needs.images.outputs.tag }}

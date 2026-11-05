@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from h2d.config import get_settings
+from h2d.create_admin import CreateAdminError, create_admin
 from h2d.db import get_session
 from h2d.models import Category, Role, Skill, SlaPolicy, SlaTarget, Technician, User
 from h2d.seed import CATEGORIES, SKILLS, TECHNICIANS, USERS, SeedNotAllowedError, run_seed
@@ -131,3 +132,52 @@ async def test_seed_recusa_producao(session: AsyncSession, monkeypatch):
 
     with pytest.raises(SeedNotAllowedError):
         await run_seed(session)
+
+
+async def test_seed_em_producao_exige_liberacao_explicita(session: AsyncSession, monkeypatch):
+    monkeypatch.setattr(get_settings(), "environment", "production")
+    monkeypatch.setattr(get_settings(), "allow_demo_seed", True)
+
+    await run_seed(session)
+
+    assert await session.scalar(select(func.count()).select_from(User)) == len(USERS)
+
+
+async def test_create_admin_cria_administrador_que_consegue_entrar(client, session: AsyncSession):
+    created = await create_admin(
+        session, email="  Chefe@H2D.local ", name="Chefe", password="uma-senha-bem-longa"
+    )
+
+    assert created is True
+    response = await client.post(
+        "/api/auth/login", json={"email": "chefe@h2d.local", "password": "uma-senha-bem-longa"}
+    )
+    assert response.status_code == 200
+    assert response.json()["role"] == "admin"
+
+
+async def test_create_admin_nao_altera_quem_ja_existe(session: AsyncSession, make_user):
+    existing = await make_user(email="existe@h2d.local", role=Role.USER)
+    original_hash = existing.password_hash
+
+    created = await create_admin(
+        session, email="existe@h2d.local", name="Outro", password="uma-senha-bem-longa"
+    )
+
+    assert created is False
+    await session.refresh(existing)
+    assert existing.role is Role.USER
+    assert existing.password_hash == original_hash
+
+
+@pytest.mark.parametrize(
+    ("email", "name", "password"),
+    [
+        ("sem-arroba", "Chefe", "uma-senha-bem-longa"),
+        ("chefe@h2d.local", "   ", "uma-senha-bem-longa"),
+        ("chefe@h2d.local", "Chefe", "curta"),
+    ],
+)
+async def test_create_admin_recusa_dados_invalidos(session: AsyncSession, email, name, password):
+    with pytest.raises(CreateAdminError):
+        await create_admin(session, email=email, name=name, password=password)
