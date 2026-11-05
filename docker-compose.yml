@@ -17,6 +17,7 @@ services:
       context: .
       dockerfile: infra/db/Dockerfile
     image: h2d-db:pg17
+    pull_policy: build
     container_name: h2d-db
     environment:
       POSTGRES_USER: postgres
@@ -38,6 +39,7 @@ services:
   api:
     <<: *restart
     container_name: h2d-api
+    pull_policy: build
     build:
       context: ./apps/api
       target: prod
@@ -74,6 +76,7 @@ services:
   web:
     <<: *restart
     container_name: h2d-web
+    pull_policy: build
     build:
       context: .
       dockerfile: apps/web/Dockerfile

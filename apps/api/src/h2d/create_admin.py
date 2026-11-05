@@ -16,7 +16,8 @@ from h2d.db import get_sessionmaker
 from h2d.models import Role, User
 from h2d.security import hash_password
 
-MIN_PASSWORD_LENGTH = 12
+# Regra da senha: 6 ou mais caracteres, com letras e números.
+MIN_PASSWORD_LENGTH = 6
 
 
 class CreateAdminError(RuntimeError):
@@ -34,6 +35,8 @@ async def create_admin(session: AsyncSession, *, email: str, name: str, password
         raise CreateAdminError(
             f"ADMIN_PASSWORD precisa ter ao menos {MIN_PASSWORD_LENGTH} caracteres"
         )
+    if not any(c.isalpha() for c in password) or not any(c.isdigit() for c in password):
+        raise CreateAdminError("ADMIN_PASSWORD precisa ter letras e números")
 
     if await session.scalar(select(User.id).where(User.email == email)) is not None:
         return False

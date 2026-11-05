@@ -145,12 +145,12 @@ async def test_seed_em_producao_exige_liberacao_explicita(session: AsyncSession,
 
 async def test_create_admin_cria_administrador_que_consegue_entrar(client, session: AsyncSession):
     created = await create_admin(
-        session, email="  Chefe@H2D.local ", name="Chefe", password="uma-senha-bem-longa"
+        session, email="  Chefe@H2D.local ", name="Chefe", password="senha123"
     )
 
     assert created is True
     response = await client.post(
-        "/api/auth/login", json={"email": "chefe@h2d.local", "password": "uma-senha-bem-longa"}
+        "/api/auth/login", json={"email": "chefe@h2d.local", "password": "senha123"}
     )
     assert response.status_code == 200
     assert response.json()["role"] == "admin"
@@ -161,7 +161,7 @@ async def test_create_admin_nao_altera_quem_ja_existe(session: AsyncSession, mak
     original_hash = existing.password_hash
 
     created = await create_admin(
-        session, email="existe@h2d.local", name="Outro", password="uma-senha-bem-longa"
+        session, email="existe@h2d.local", name="Outro", password="senha123"
     )
 
     assert created is False
@@ -173,9 +173,11 @@ async def test_create_admin_nao_altera_quem_ja_existe(session: AsyncSession, mak
 @pytest.mark.parametrize(
     ("email", "name", "password"),
     [
-        ("sem-arroba", "Chefe", "uma-senha-bem-longa"),
-        ("chefe@h2d.local", "   ", "uma-senha-bem-longa"),
-        ("chefe@h2d.local", "Chefe", "curta"),
+        ("sem-arroba", "Chefe", "senha123"),
+        ("chefe@h2d.local", "   ", "senha123"),
+        ("chefe@h2d.local", "Chefe", "ab123"),
+        ("chefe@h2d.local", "Chefe", "abcdefgh"),
+        ("chefe@h2d.local", "Chefe", "12345678"),
     ],
 )
 async def test_create_admin_recusa_dados_invalidos(session: AsyncSession, email, name, password):
