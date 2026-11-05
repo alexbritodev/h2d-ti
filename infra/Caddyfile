@@ -1,0 +1,27 @@
+# Serve a SPA e encaminha /api. O banco e o n8n nunca passam por aqui (divergências D2 e D4).
+{$H2D_DOMAIN:localhost} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# Webhooks do n8n chegam à API pela rede interna do Docker, nunca por fora.
+	handle /api/hooks/* {
+		respond 404
+	}
+
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

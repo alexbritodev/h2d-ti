@@ -203,11 +203,24 @@ Precisam de uma decisão na F0. A coluna "Proposta" é o que este plano assume.
 | D2 | O Caddy encaminha `/hooks` ao n8n, mas a API também tem `POST /hooks/n8n/*` | API em `/api/hooks/n8n/*`, chamada pela rede interna do Docker e bloqueada no Caddy |
 | D3 | A regra é "lógica de negócio no backend", mas o vigia de SLA "consulta chamados em risco" sem endpoint previsto, e o diagrama liga o n8n ao banco | Novo endpoint assinado na API; o n8n só acessa o próprio banco `n8n` |
 | D4 | Nenhum gatilho externo chega ao n8n no MVP: o worker o chama pela rede interna, e o e-mail para chamado é fase 2 | **Não expor o n8n publicamente no MVP.** Sem `hooks.<domínio>` até a fase 2, o que reduz a superfície de ataque |
-| D5 | Faltam tabelas para a tela de IA (prompts, limiares), para `/admin/routing` e para os rascunhos de artigo | Criar `prompt_versions` (F3), `app_settings` (F4, inclui regras de roteamento) e `kb_drafts` (F7) |
+| D5 | Faltam tabelas para a tela de IA (prompts, limiares), para `/admin/routing` e para os rascunhos de artigo | Criar `prompt_versions` (F3), `app_settings` (F4, inclui regras de roteamento) e `kb_drafts` (F7). A F1 já criou `sla_targets`, com os prazos de cada política por prioridade |
 | D6 | Faltam endpoints: avaliação CSAT, histórico de conversas, carga do técnico | Incluir nas fases F3, F5 e F6 |
 | D7 | O ciclo de aprendizado está no fluxo principal, mas não aparece em nenhuma sprint nem na tabela de escopo | Campo de solução na F4; geração de rascunho na F7, cortável |
 | D8 | Mascaramento e aviso de IA ficam implícitos na Sprint 5 (LGPD), mas o LLM é chamado na Sprint 2 | Antecipar para a F3 |
 | D9 | "multilingual-e5" parece erro de digitação, e não verifiquei se os modelos citados existem no FastEmbed nem se o OpenRouter oferece embeddings | Confirmar no spike da F2 |
+| D10 | A seção 7 pede um console denso e monoespaçado, que foi reprovado ao ser visto | **Decidido:** ERP moderno com temática de TI: tema claro por padrão e escuro opcional, base em preto e cinza, Geist na interface, JetBrains Mono só em códigos. Gráficos com degradês e animações que respeitam o movimento reduzido |
+
+### Telas com dados de demonstração
+
+Todas as telas do ERP já existem, com dados fictícios de `apps/web/src/lib/demo/data.ts` e o selo "Dados de demonstração". Só o login é real. Cada fase troca os dados de demonstração pela API, e o selo sai junto. Entregar as telas não conclui nenhuma fase: os critérios de saída continuam valendo.
+
+| Tela | Backend entra na |
+| --- | --- |
+| Documentos, Base de conhecimento | F2 |
+| Assistente | F3 |
+| Fila de chamados, Meus chamados | F4 |
+| Dashboard | F6 |
+| Cadastros, Auditoria, Configurações | Cortadas até 18/11 (seção 6): sem backend, tirar do menu ou manter o selo na demo |
 
 ## 6. Plano de corte
 

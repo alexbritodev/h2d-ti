@@ -262,6 +262,8 @@ A visibilidade é copiada para cada chunk de propósito: o filtro de permissão 
 
 ## 7. Frontend: console monoespaçado e denso
 
+> **Atualização de 04/11/2026:** o console denso foi substituído por uma interface de ERP moderno com temática de TI (base em preto e cinza, fonte legível na interface). Prevalece a divergência D10 do [plano de implementação](PLANO-IMPLEMENTACAO.md); as linguagens visual e de tokens abaixo são históricas.
+
 O tema proposto é um console de operações: fundo escuro, uma única fonte monoespaçada, bordas finas, nada de sombra e muita informação por tela. Tema claro com os mesmos tokens, para quem preferir.
 
 ### Mapa de perfis e telas

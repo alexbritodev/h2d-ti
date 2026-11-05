@@ -1,0 +1,45 @@
+/*
+ * Cores do H2D - TI, um ERP de atendimento com temática de TI.
+ * Base em preto e cinza neutros; a barra lateral preta é igual nos dois temas e identifica
+ * o produto. O verde do plano é a cor de ação. O contraste é verificado em tokens.test.ts.
+ */
+:root {
+  --sidebar: #0a0a0a;
+  --sidebar-hover: #1f1f1f;
+  --sidebar-text: #e0e0e0;
+  --sidebar-muted: #a0a0a0;
+  --sidebar-accent: #3ddc97;
+}
+
+:root,
+[data-theme="light"] {
+  --bg: #f4f4f5;
+  --surface: #ffffff;
+  --surface-2: #ececee;
+  --border: #dcdcdf;
+  --text: #18181b;
+  --muted: #5c5c63;
+  --accent: #0d7a4c;
+  --accent-fg: #ffffff;
+  --warn: #855600;
+  --danger: #b3261e;
+  --info: #1a5fb4;
+  --shadow-card: 0 1px 3px rgb(0 0 0 / 0.08);
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --bg: #0a0a0a;
+  --surface: #141414;
+  --surface-2: #1f1f1f;
+  --border: #2e2e2e;
+  --text: #ededed;
+  --muted: #a1a1a1;
+  --accent: #3ddc97;
+  --accent-fg: #06281a;
+  --warn: #f2b134;
+  --danger: #ff7b7b;
+  --info: #6cb6ff;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4);
+  color-scheme: dark;
+}

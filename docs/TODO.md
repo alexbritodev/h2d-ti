@@ -36,38 +36,46 @@ Progresso
 
 **Repositório e ambiente**
 - [x] `TL` Rodar `git init` e criar o repositório no GitHub
-- [ ] `TL` Criar a estrutura do monorepo
-- [ ] `TL` Configurar proteção da `main`, CODEOWNERS e templates de issue e PR
-- [ ] `B` Criar Makefile, `.env.example` e pre-commit com gitleaks
-- [ ] `TL` Criar o Compose local (db, api, worker, web), com init dos bancos `h2d` e `n8n`
+- [x] `TL` Criar a estrutura do monorepo
+- [ ] `TL` Configurar proteção da `main` (CODEOWNERS e templates já criados)
+- [x] `B` Criar Makefile, `.env.example` e pre-commit com gitleaks
+- [x] `TL` Criar o Compose local (db, api, web), com init dos bancos `h2d` e `n8n`; o worker entra na F2
 - [ ] `TL` Criar o GitHub Projects e a milestone da fase
 
 **Backend**
-- [ ] `TL` Estruturar FastAPI, SQLAlchemy, Alembic, `/health` e `/ready`
+- [x] `TL` Estruturar FastAPI, SQLAlchemy, Alembic, `/api/health` e `/api/ready`
 - [ ] `TL` Revisar o modelo de dados completo, incluindo as tabelas da divergência D5
-- [ ] `TL` Migrar o grupo Cadastro e `audit_log`, com IDs UUID v7 gerados na aplicação
-- [ ] `TL` Implementar auth com JWT em cookie, argon2 e papéis
-- [ ] `B` Criar o seed de usuários, técnicos, habilidades, categorias e SLAs
+- [x] `TL` Migrar o grupo Cadastro e `audit_log`, com IDs UUID v7 gerados na aplicação
+- [x] `TL` Implementar auth com JWT em cookie, argon2 e papéis
+- [x] `B` Criar o seed de usuários, técnicos, habilidades, categorias e SLAs (prazos de SLA provisórios)
 
 **Frontend**
-- [ ] `A` Criar o projeto Vite com TanStack Router e Query, Tailwind e shadcn/ui
-- [ ] `A` Criar `tokens.css` e validar o contraste dos dois temas
-- [ ] `A` Montar o layout: barra lateral, cabeçalho em caminho e barra de status
-- [ ] `A` Criar a tela de login e a proteção de rotas por papel
-- [ ] `A` Gerar o cliente a partir do OpenAPI
+- [x] `A` Criar o projeto Vite com TanStack Router e Query e Tailwind
+- [ ] `A` Testar `shadcn add` (só o `components.json` existe; botão e campo foram escritos à mão)
+- [x] `A` Criar `tokens.css` e validar o contraste dos dois temas (teste automatizado)
+- [x] `A` Montar o layout de ERP: menu por módulos, breadcrumbs, busca `Ctrl+K` e notificações
+- [x] `A` Criar o kit: badges, snippets, tabelas, abas, modais, painéis, gráficos e avisos
+- [x] `A` Criar as telas com dados de demonstração (divergência D10)
+- [ ] Todos: decidir se Cadastros, Auditoria e Configurações ganham backend ou saem do menu da demo
+- [x] `A` Criar a tela de login e a proteção de rotas por papel
+- [x] `A` Gerar o cliente a partir do OpenAPI
 
 **CI e VPS**
-- [ ] `TL` Configurar CI: lint, tipos, testes com pgvector, contrato, build e varredura de segurança
-- [ ] `TL` Ativar Dependabot e, se o repositório for público, secret scanning com push protection
+- [x] `TL` Escrever o CI: lint, tipos, testes com pgvector, contrato, build e varredura de segurança
+- [ ] `TL` Confirmar o CI verde no GitHub (ainda não rodou lá)
+- [ ] `TL` Incluir varredura de imagens com Trivy
+- [x] `TL` Configurar Dependabot
+- [ ] `TL` Ativar secret scanning com push protection, se o repositório for público
 - [ ] `TL` Endurecer a VPS: SSH por chave, ufw, fail2ban e atualizações automáticas
-- [ ] `TL` Configurar Caddy com TLS e cabeçalhos básicos
-- [ ] `TL` Configurar deploy via GHCR com aprovação manual e checagem de `/ready`
+- [x] `TL` Escrever o Caddyfile com TLS e cabeçalhos básicos (configuração validada, sem uso real)
+- [ ] `TL` Criar o Compose de produção
+- [ ] `TL` Configurar deploy via GHCR com aprovação manual e checagem de `/api/ready`
 
 **Critérios de saída**
-- [ ] Login do seed funciona em HTTPS na VPS
-- [ ] Mudança de contrato não commitada quebra o CI
-- [ ] Merge na `main` chega à VPS com `/ready` verde
-- [ ] Banco inacessível de fora da VPS
+- [ ] Login do seed funciona em HTTPS na VPS (local em HTTP: testado no navegador)
+- [ ] Mudança de contrato não commitada quebra o CI (detecção testada localmente)
+- [ ] Merge na `main` chega à VPS com `/api/ready` verde
+- [ ] Banco inacessível de fora da VPS (local: só em 127.0.0.1)
 
 ## F2. Ingestão
 

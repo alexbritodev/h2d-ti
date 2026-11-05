@@ -1,0 +1,78 @@
+# Ambiente de desenvolvimento. A produção terá arquivo próprio em infra/.
+name: h2d-ti
+
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina no .env}
+      H2D_DB_PASSWORD: ${H2D_DB_PASSWORD:?defina no .env}
+      N8N_DB_PASSWORD: ${N8N_DB_PASSWORD:?defina no .env}
+    ports:
+      # Só em 127.0.0.1: o banco nunca fica exposto à rede.
+      - "127.0.0.1:${DB_PORT:-5433}:5432"
+    volumes:
+      - h2d_pgdata:/var/lib/postgresql/data
+      - ./infra/db/init/01-databases.sh:/docker-entrypoint-initdb.d/01-databases.sh:ro
+      - ./infra/db/init/02-dev-test-database.sh:/docker-entrypoint-initdb.d/02-dev-test-database.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d h2d"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: ./apps/api
+      target: dev
+    environment:
+      ENVIRONMENT: dev
+      DATABASE_URL: postgresql+asyncpg://h2d:${H2D_DB_PASSWORD}@db:5432/h2d
+      JWT_SECRET: ${JWT_SECRET:?defina no .env}
+      COOKIE_SECURE: "false"
+      SEED_PASSWORD: ${SEED_PASSWORD:-}
+      TEST_DATABASE_URL: postgresql+asyncpg://h2d:${H2D_DB_PASSWORD}@db:5432/h2d_test
+      # No Docker com Windows, eventos de arquivo não chegam ao container.
+      WATCHFILES_FORCE_POLLING: "true"
+    command: sh -c "alembic upgrade head && uvicorn h2d.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/src"
+    ports:
+      - "127.0.0.1:${API_PORT:-8010}:8000"
+    volumes:
+      - ./apps/api:/app
+    # Só fica saudável depois das migrações: "up --wait" seguido do seed não pode correr risco.
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://localhost:8000/api/ready', timeout=2)
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    image: node:22-slim
+    working_dir: /app
+    environment:
+      API_PROXY_TARGET: http://api:8000
+      VITE_USE_POLLING: "true"
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0"
+    ports:
+      - "127.0.0.1:5173:5173"
+    volumes:
+      - ./apps/web:/app
+      # Contrato da API, lido por "npm run gen:api" como ../api/openapi.json.
+      - ./apps/api/openapi.json:/api/openapi.json:ro
+      # node_modules do container não se mistura com o do Windows.
+      - h2d_web_node_modules:/app/node_modules
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  h2d_pgdata:
+  h2d_web_node_modules:
