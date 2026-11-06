@@ -1,4 +1,4 @@
-"""Grupos Cadastro, auditoria e Conhecimento. Os demais grupos entram nas fases seguintes."""
+"""Grupos Cadastro, auditoria, Conhecimento, Atendimento (chat) e Chamados."""
 
 import uuid
 from datetime import datetime
@@ -15,9 +15,12 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    Identity,
     Index,
     Integer,
     MetaData,
+    Numeric,
+    SmallInteger,
     String,
     Text,
     UniqueConstraint,
@@ -328,3 +331,240 @@ class IngestionJob(Base):
     queued_at: Mapped[datetime] = _created_at()
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+# --- Atendimento: chat (F3) ---------------------------------------------------------------------
+
+
+class ConversationStatus(StrEnum):
+    OPEN = "open"
+    RESOLVED = "resolved"
+    ESCALATED = "escalated"
+
+
+class MessageRole(StrEnum):
+    USER = "user"
+    ASSISTANT = "assistant"
+
+
+class PromptVersion(Base):
+    """Cada versão de prompt fica gravada; a resposta guarda qual versão a gerou."""
+
+    __tablename__ = "prompt_versions"
+    __table_args__ = (
+        UniqueConstraint("name", "version", name="uq_prompt_versions_name_version"),
+        Index(
+            "uq_prompt_versions_one_active",
+            "name",
+            unique=True,
+            postgresql_where=text("is_active"),
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = _id_column()
+    name: Mapped[str] = mapped_column(String(80))
+    version: Mapped[int] = mapped_column(Integer)
+    content: Mapped[str] = mapped_column(Text)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
+    created_at: Mapped[datetime] = _created_at()
+
+
+class Conversation(Base):
+    __tablename__ = "conversations"
+
+    id: Mapped[uuid.UUID] = _id_column()
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    status: Mapped[ConversationStatus] = mapped_column(
+        _enum(ConversationStatus, "conversation_status"), default=ConversationStatus.OPEN
+    )
+    title: Mapped[str | None] = mapped_column(String(200))
+    # Respostas que o usuário marcou como não resolvidas (duas seguidas escalonam).
+    failed_attempts: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    # Retenção (LGPD): a data vem da política da empresa; a limpeza entra na F7.
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = _created_at()
+    updated_at: Mapped[datetime] = _updated_at()
+
+    messages: Mapped[list["Message"]] = relationship(
+        back_populates="conversation", order_by="Message.created_at", cascade="all, delete-orphan"
+    )
+
+
+class Message(Base):
+    """Guarda só o texto já mascarado: senha, CPF, cartão e token nunca chegam ao banco."""
+
+    __tablename__ = "messages"
+    __table_args__ = (Index("ix_messages_conversation_created", "conversation_id", "created_at"),)
+
+    id: Mapped[uuid.UUID] = _id_column()
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("conversations.id", ondelete="CASCADE")
+    )
+    role: Mapped[MessageRole] = mapped_column(_enum(MessageRole, "message_role"))
+    content: Mapped[str] = mapped_column(Text)
+    # Quantos trechos sensíveis foram escondidos nesta mensagem (para avisar o usuário).
+    redactions: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    # [{"chunk_id", "document_id", "title", "breadcrumb"}] na ordem em que a resposta cita.
+    citations: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, default=list, server_default=text("'[]'::jsonb")
+    )
+    # 1 = útil, -1 = não ajudou.
+    feedback: Mapped[int | None] = mapped_column(SmallInteger)
+    prompt_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("prompt_versions.id", ondelete="SET NULL")
+    )
+    created_at: Mapped[datetime] = _created_at()
+
+    conversation: Mapped[Conversation] = relationship(back_populates="messages")
+
+
+class LlmCall(Base):
+    """Uma linha por chamada ao modelo: custo, tokens, latência e depuração."""
+
+    __tablename__ = "llm_calls"
+    __table_args__ = (Index("ix_llm_calls_created_at", "created_at"),)
+
+    id: Mapped[uuid.UUID] = _id_column()
+    purpose: Mapped[str] = mapped_column(String(30))
+    model: Mapped[str] = mapped_column(String(200))
+    status: Mapped[str] = mapped_column(String(20))
+    error: Mapped[str | None] = mapped_column(Text)
+    input_tokens: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    output_tokens: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    latency_ms: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    # numeric, não float: a soma do dashboard precisa bater.
+    cost_usd: Mapped[float] = mapped_column(Numeric(12, 6), default=0, server_default=text("0"))
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), index=True
+    )
+    conversation_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("conversations.id", ondelete="SET NULL"), index=True
+    )
+    prompt_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("prompt_versions.id", ondelete="SET NULL")
+    )
+    created_at: Mapped[datetime] = _created_at()
+
+
+# --- Chamados (F4) ------------------------------------------------------------------------------
+
+
+class Level(StrEnum):
+    """Impacto e urgência."""
+
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
+class TicketStatus(StrEnum):
+    NEW = "new"
+    TRIAGE = "triage"  # fila de triagem manual do tech lead
+    ASSIGNED = "assigned"
+    IN_PROGRESS = "in_progress"
+    WAITING_USER = "waiting_user"
+    RESOLVED = "resolved"
+
+
+class OutboxStatus(StrEnum):
+    PENDING = "pending"
+    DELIVERED = "delivered"
+    FAILED = "failed"
+
+
+class Ticket(Base):
+    __tablename__ = "tickets"
+    __table_args__ = (
+        Index("ix_tickets_status", "status"),
+        Index("ix_tickets_technician_status", "technician_id", "status"),
+    )
+
+    id: Mapped[uuid.UUID] = _id_column()
+    # O código legível (H2D-0142) é derivado deste número sequencial.
+    number: Mapped[int] = mapped_column(BigInteger, Identity(always=True), unique=True)
+    requester_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    conversation_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("conversations.id", ondelete="SET NULL")
+    )
+    category_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("categories.id", ondelete="SET NULL")
+    )
+    impact: Mapped[Level | None] = mapped_column(_enum(Level, "ticket_level"))
+    urgency: Mapped[Level | None] = mapped_column(_enum(Level, "ticket_level"))
+    priority: Mapped[Priority | None] = mapped_column(_enum(Priority, "ticket_priority"))
+    summary: Mapped[str] = mapped_column(String(300))
+    description: Mapped[str] = mapped_column(Text, default="")
+    already_tried: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[TicketStatus] = mapped_column(
+        _enum(TicketStatus, "ticket_status"), default=TicketStatus.NEW
+    )
+    technician_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("technicians.id", ondelete="SET NULL")
+    )
+    # Confiança da classificação (0 a 1) e a resposta completa do classificador, para auditoria.
+    confidence: Mapped[float | None] = mapped_column(Numeric(4, 3))
+    classification: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    is_vip: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
+    first_response_due: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resolution_due: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    first_response_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    solution: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = _created_at()
+    updated_at: Mapped[datetime] = _updated_at()
+
+    @property
+    def code(self) -> str:
+        return f"H2D-{self.number:04d}"
+
+
+class TicketEvent(Base):
+    """Linha do tempo do chamado. A aplicação só acrescenta: nunca altera nem apaga."""
+
+    __tablename__ = "ticket_events"
+    __table_args__ = (Index("ix_ticket_events_ticket_created", "ticket_id", "created_at"),)
+
+    id: Mapped[uuid.UUID] = _id_column()
+    ticket_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tickets.id", ondelete="CASCADE"))
+    # created, classified, assigned, status_changed, comment, escalated
+    type: Mapped[str] = mapped_column(String(40))
+    actor_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    payload: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, default=dict, server_default=text("'{}'::jsonb")
+    )
+    # Por que o chamado caiu com este técnico (ou na triagem manual).
+    reason: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = _created_at()
+
+
+class OutboxEvent(Base):
+    """Fila de eventos para o n8n, gravada na mesma transação do dado que a originou."""
+
+    __tablename__ = "outbox_events"
+    __table_args__ = (Index("ix_outbox_status_next", "status", "next_attempt_at"),)
+
+    id: Mapped[uuid.UUID] = _id_column()
+    # A reentrega usa o mesmo event_id: o n8n descarta repetidos e não duplica aviso.
+    event_id: Mapped[uuid.UUID] = mapped_column(Uuid, unique=True, default=uuid.uuid4)
+    type: Mapped[str] = mapped_column(String(60))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    status: Mapped[OutboxStatus] = mapped_column(
+        _enum(OutboxStatus, "outbox_status"), default=OutboxStatus.PENDING
+    )
+    attempts: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    next_attempt_at: Mapped[datetime] = _created_at()
+    last_error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = _created_at()
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AppSetting(Base):
+    """Ajustes que o admin muda sem deploy: limiares e regras de roteamento."""
+
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(String(80), primary_key=True)
+    value: Mapped[Any] = mapped_column(JSONB)
+    updated_at: Mapped[datetime] = _updated_at()

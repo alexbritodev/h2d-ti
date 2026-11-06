@@ -1,0 +1,359 @@
+"""Fluxo do chat: mascarar, checar limites, buscar, responder com fontes e conferir a fidelidade.
+
+Cada passo que pode falhar tem um caminho de saída que não inventa resposta: sem trecho, sem
+citação, sem fidelidade ou sem modelo, o assistente diz que não achou e oferece abrir chamado.
+"""
+
+import re
+import uuid
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from typing import Any, Literal
+
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from h2d.chat import prompts
+from h2d.chat.masking import mask_sensitive
+from h2d.config import get_settings
+from h2d.kb.embeddings import Embedder
+from h2d.kb.search import Hit, search_chunks
+from h2d.llm.client import LLM, ChatMessage, LLMError, LLMResult
+from h2d.models import (
+    Conversation,
+    ConversationStatus,
+    LlmCall,
+    Message,
+    MessageRole,
+    PromptVersion,
+    Role,
+    User,
+)
+
+Action = Literal["answered", "not_found", "escalate", "unavailable", "limit"]
+HISTORY_MESSAGES = 6
+SEARCH_LIMIT = 5
+
+
+class ChatLimitError(Exception):
+    """Limite de uso da conversa. A mensagem é própria para aparecer ao usuário."""
+
+
+@dataclass
+class TurnResult:
+    action: Action
+    message: Message
+    citations: list[dict[str, Any]] = field(default_factory=list)
+    reason: str | None = None
+
+
+async def get_prompt_version(session: AsyncSession) -> PromptVersion:
+    """Versão ativa do prompt de resposta. Se o texto mudou no código, cria a versão seguinte."""
+    current = await session.scalar(
+        select(PromptVersion).where(
+            PromptVersion.name == prompts.ANSWER_PROMPT_NAME, PromptVersion.is_active
+        )
+    )
+    if current is not None and current.content == prompts.ANSWER_PROMPT:
+        return current
+    last = await session.scalar(
+        select(func.max(PromptVersion.version)).where(
+            PromptVersion.name == prompts.ANSWER_PROMPT_NAME
+        )
+    )
+    if current is not None:
+        current.is_active = False
+        await session.flush()
+    version = PromptVersion(
+        name=prompts.ANSWER_PROMPT_NAME,
+        version=(last or 0) + 1,
+        content=prompts.ANSWER_PROMPT,
+        is_active=True,
+    )
+    session.add(version)
+    await session.flush()
+    return version
+
+
+async def llm_calls_today(session: AsyncSession) -> int:
+    start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+    return (
+        await session.scalar(
+            select(func.count()).select_from(LlmCall).where(LlmCall.created_at >= start)
+        )
+    ) or 0
+
+
+async def call_llm(
+    session: AsyncSession,
+    llm: LLM,
+    purpose: str,
+    messages: list[ChatMessage],
+    *,
+    user: User,
+    conversation: Conversation,
+    prompt_version: PromptVersion | None = None,
+    temperature: float = 0.2,
+    max_tokens: int = 700,
+) -> LLMResult:
+    """Chama o modelo e grava a linha em llm_calls, com sucesso ou erro."""
+    base = {
+        "purpose": purpose,
+        "user_id": user.id,
+        "conversation_id": conversation.id,
+        "prompt_version_id": prompt_version.id if prompt_version else None,
+    }
+    try:
+        result = await llm.complete(messages, temperature=temperature, max_tokens=max_tokens)
+    except LLMError as error:
+        session.add(
+            LlmCall(
+                **base,
+                model=llm.model_name,
+                status="rate_limited" if error.rate_limited else "error",
+                error=str(error)[:1000],
+            )
+        )
+        await session.flush()
+        raise
+    session.add(
+        LlmCall(
+            **base,
+            model=result.model,
+            status="ok",
+            input_tokens=result.input_tokens,
+            output_tokens=result.output_tokens,
+            latency_ms=result.latency_ms,
+            cost_usd=result.cost_usd,
+        )
+    )
+    await session.flush()
+    return result
+
+
+def _sources_block(hits: list[Hit]) -> str:
+    """Trechos num bloco delimitado. Marcas de fechamento dentro do texto são neutralizadas."""
+    parts = []
+    for index, hit in enumerate(hits, start=1):
+        safe = re.sub(r"</?\s*fonte[^>]*>", "", hit.content, flags=re.IGNORECASE)
+        parts.append(f'<fonte id="{index}" titulo="{hit.document_title}">\n{safe}\n</fonte>')
+    return "<fontes>\n" + "\n".join(parts) + "\n</fontes>"
+
+
+def _history(messages: list[Message]) -> list[ChatMessage]:
+    recent = messages[-HISTORY_MESSAGES:]
+    return [ChatMessage(m.role.value, m.content) for m in recent]
+
+
+def _cited(answer: str, hits: list[Hit]) -> list[dict[str, Any]]:
+    seen: list[int] = []
+    for number in re.findall(r"\[(\d+)\]", answer):
+        index = int(number)
+        if 1 <= index <= len(hits) and index not in seen:
+            seen.append(index)
+    return [
+        {
+            "chunk_id": str(hits[i - 1].chunk_id),
+            "document_id": str(hits[i - 1].document_id),
+            "title": hits[i - 1].document_title,
+            "breadcrumb": hits[i - 1].breadcrumb,
+        }
+        for i in seen
+    ]
+
+
+def _matches(text: str, keywords: tuple[str, ...]) -> bool:
+    lowered = text.lower()
+    return any(keyword in lowered for keyword in keywords)
+
+
+def can_see_it(user: User) -> bool:
+    return user.role in (Role.TECH, Role.ADMIN)
+
+
+async def handle_user_message(
+    session: AsyncSession,
+    *,
+    user: User,
+    conversation: Conversation,
+    text: str,
+    llm: LLM,
+    embedder: Embedder,
+) -> TurnResult:
+    settings = get_settings()
+    if len(text) > settings.chat_max_message_chars:
+        raise ChatLimitError(f"A mensagem passa de {settings.chat_max_message_chars} caracteres.")
+    sent = (
+        await session.scalar(
+            select(func.count())
+            .select_from(Message)
+            .where(Message.conversation_id == conversation.id, Message.role == MessageRole.USER)
+        )
+    ) or 0
+    if sent >= settings.chat_max_user_messages:
+        raise ChatLimitError(
+            "Esta conversa chegou ao limite de mensagens. Abra um chamado ou comece outra conversa."
+        )
+
+    # Tudo o que vem do usuário passa pelo mascaramento antes de qualquer gravação ou envio.
+    masked = mask_sensitive(text)
+    previous = list(
+        await session.scalars(
+            select(Message)
+            .where(Message.conversation_id == conversation.id)
+            .order_by(Message.created_at)
+        )
+    )
+    user_message = Message(
+        conversation_id=conversation.id,
+        role=MessageRole.USER,
+        content=masked.text,
+        redactions=masked.redactions,
+        # Horário exato: o now() do banco é igual na transação inteira e embaralharia a ordem.
+        created_at=datetime.now(UTC),
+    )
+    session.add(user_message)
+    if conversation.title is None:
+        conversation.title = masked.text.strip().replace("\n", " ")[:80]
+    await session.flush()
+    note = (
+        prompts.REDACTION_NOTE.format(kinds=", ".join(sorted(masked.kinds)))
+        if masked.redactions
+        else ""
+    )
+
+    async def reply(
+        action: Action,
+        body: str,
+        *,
+        citations: list[dict[str, Any]] | None = None,
+        prompt_version: PromptVersion | None = None,
+        reason: str | None = None,
+    ) -> TurnResult:
+        content = f"{note}\n\n{body}" if note else body
+        message = Message(
+            conversation_id=conversation.id,
+            role=MessageRole.ASSISTANT,
+            content=content,
+            citations=citations or [],
+            prompt_version_id=prompt_version.id if prompt_version else None,
+            created_at=datetime.now(UTC),
+        )
+        session.add(message)
+        if action == "escalate":
+            conversation.status = ConversationStatus.ESCALATED
+        await session.flush()
+        return TurnResult(action, message, citations or [], reason)
+
+    # Tema crítico ou pedido de humano: não tenta resolver.
+    if _matches(masked.text, prompts.CRITICAL_KEYWORDS):
+        return await reply("escalate", prompts.CRITICAL_TEXT, reason="critical")
+    if _matches(masked.text, prompts.HUMAN_KEYWORDS):
+        return await reply("escalate", prompts.HUMAN_TEXT, reason="human_requested")
+
+    # Quanto ainda cabe no teto diário do modelo (soma de todos os usuários).
+    if await llm_calls_today(session) + 2 > settings.llm_daily_request_limit:
+        return await reply("limit", prompts.LIMIT_TEXT, reason="daily_limit")
+
+    version = await get_prompt_version(session)
+
+    query = masked.text
+    if previous:
+        try:
+            rewritten = await call_llm(
+                session,
+                llm,
+                "rewrite",
+                [
+                    ChatMessage("system", prompts.REWRITE_PROMPT),
+                    *_history(previous),
+                    ChatMessage("user", masked.text),
+                ],
+                user=user,
+                conversation=conversation,
+                temperature=0.0,
+                max_tokens=120,
+            )
+            query = rewritten.text.strip() or masked.text
+        except LLMError:
+            query = masked.text  # sem reescrita, a busca usa a pergunta como veio
+
+    hits = await search_chunks(
+        session, query, embedder, can_see_it=can_see_it(user), limit=SEARCH_LIMIT
+    )
+    if not hits:
+        return await reply("not_found", prompts.NOT_FOUND_TEXT, reason="no_hits")
+
+    try:
+        answered = await call_llm(
+            session,
+            llm,
+            "answer",
+            [
+                ChatMessage("system", prompts.ANSWER_PROMPT),
+                *_history(previous),
+                ChatMessage("user", f"{_sources_block(hits)}\n\nPergunta: {masked.text}"),
+            ],
+            user=user,
+            conversation=conversation,
+            prompt_version=version,
+        )
+    except LLMError as error:
+        reason = "rate_limited" if error.rate_limited else "llm_error"
+        return await reply(
+            "unavailable", prompts.UNAVAILABLE_TEXT, prompt_version=version, reason=reason
+        )
+
+    answer = answered.text.strip()
+    if not answer or "NAO_ENCONTREI" in answer.upper().replace(" ", "_"):
+        return await reply(
+            "not_found", prompts.NOT_FOUND_TEXT, prompt_version=version, reason="model_declined"
+        )
+    citations = _cited(answer, hits)
+    if not citations:
+        # Resposta sem fonte não vale: o assistente só afirma o que consegue citar.
+        return await reply(
+            "not_found", prompts.NOT_FOUND_TEXT, prompt_version=version, reason="no_citation"
+        )
+
+    try:
+        verdict = await call_llm(
+            session,
+            llm,
+            "fidelity",
+            [
+                ChatMessage("system", prompts.FIDELITY_PROMPT),
+                ChatMessage("user", f"{_sources_block(hits)}\n\nRESPOSTA:\n{answer}"),
+            ],
+            user=user,
+            conversation=conversation,
+            prompt_version=version,
+            temperature=0.0,
+            max_tokens=5,
+        )
+        if verdict.text.strip().upper().startswith("N"):
+            return await reply(
+                "not_found", prompts.NOT_FOUND_TEXT, prompt_version=version, reason="unfaithful"
+            )
+    except LLMError:
+        pass  # sem a conferência, a resposta já citada segue; a falha fica em llm_calls
+
+    return await reply("answered", answer, citations=citations, prompt_version=version)
+
+
+async def register_feedback(session: AsyncSession, message: Message, value: int) -> Conversation:
+    """👍/👎. Duas respostas seguidas sem ajudar escalonam a conversa."""
+    conversation = await session.get_one(Conversation, message.conversation_id)
+    message.feedback = value
+    if value < 0:
+        conversation.failed_attempts += 1
+        if conversation.failed_attempts >= 2 and conversation.status is ConversationStatus.OPEN:
+            conversation.status = ConversationStatus.ESCALATED
+    else:
+        conversation.failed_attempts = 0
+    await session.flush()
+    return conversation
+
+
+def new_conversation(user: User) -> Conversation:
+    return Conversation(id=uuid.uuid4(), user_id=user.id)

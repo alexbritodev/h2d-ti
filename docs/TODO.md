@@ -112,14 +112,14 @@ Progresso
 
 ## F3. Chat RAG
 
-- [ ] `TL` Criar o cliente LLM, o `FakeLLM` e a tabela `llm_calls`
-- [ ] `TL` Implementar mascaramento de senha, CPF, cartão e token
-- [ ] `TL` Implementar limites de turnos, tokens e requisições
-- [ ] `TL` Migrar conversas e mensagens; documentar as tabelas do checkpointer
-- [ ] `TL` Implementar `prompt_versions` e gravar a versão em cada resposta
-- [ ] `TL` Implementar o grafo LangGraph: reescrita, busca e geração com trechos delimitados
-- [ ] `TL` Implementar checagem de fidelidade, limiar de confiança e gatilhos de escalonamento
-- [ ] `TL` Criar endpoints de conversas, histórico, mensagens em SSE, feedback e `escalate`
+- [x] `TL` Criar o cliente LLM (OpenRouter, com modelos de reserva e novas tentativas), o `FakeLLM` e a tabela `llm_calls` (custo em `numeric`). Testado com o modelo real
+- [x] `TL` Implementar mascaramento de senha, CPF, cartão e token (`h2d.chat.masking`, antes de gravar ou enviar ao modelo)
+- [x] `TL` Implementar limites de turnos, tamanho da mensagem e requisições ao modelo por dia (`LLM_DAILY_REQUEST_LIMIT`, padrão 45 por causa do plano gratuito)
+- [x] `TL` Migrar conversas e mensagens (migração 0003). **Sem LangGraph:** o fluxo é um pipeline simples em funções, então não há tabelas de checkpointer
+- [x] `TL` Implementar `prompt_versions` e gravar a versão em cada resposta
+- [x] `TL` Implementar o fluxo do chat (sem LangGraph): reescrita, busca, geração com trechos delimitados e citação
+- [x] `TL` Implementar checagem de fidelidade, resposta só com citação e gatilhos de escalonamento (tema crítico, pedido de humano, duas respostas sem ajudar)
+- [x] `TL` Criar endpoints de conversas, histórico, mensagens em SSE (resposta já pronta, enviada em pedaços), feedback, `resolve` e `escalate` (`/api/chat/*`)
 - [ ] `A` Criar a tela de chat com SSE via `fetch`, começando com stream simulado
 - [ ] `A` Criar o painel de fontes, `CitationCard` e 👍/👎
 - [ ] `A` Incluir o botão "falar com a TI" e o aviso sobre uso de IA
@@ -136,15 +136,15 @@ Progresso
 
 ## F4. Triagem e chamados
 
-- [ ] `TL` Migrar `tickets`, `ticket_events`, `outbox_events` e `app_settings`
+- [x] `TL` Migrar `tickets`, `ticket_events`, `outbox_events` e `app_settings` (migração 0004)
 - [ ] `TL` Adicionar a ferramenta `get_my_tickets` ao agente, somente leitura e limitada ao próprio usuário
-- [ ] `TL` Implementar o classificador com saída Pydantic e categorias do banco
-- [ ] `TL` Implementar a matriz de prioridade e o cálculo de prazo de SLA em código
-- [ ] `TL` Implementar o roteador, com testes unitários e motivo gravado
-- [ ] `TL` Implementar a fila de triagem manual
+- [x] `TL` Implementar o classificador com saída Pydantic e categorias do banco (categoria fora da lista vira triagem manual)
+- [x] `TL` Implementar a matriz de prioridade e o cálculo de prazo de SLA em código (`h2d.tickets.rules`)
+- [x] `TL` Implementar o roteador, com testes unitários e motivo gravado em `ticket_events`
+- [x] `TL` Implementar a fila de triagem manual (backend: filtro `triage` e reatribuição pelo admin; falta a tela)
 - [ ] `TL` Implementar perguntas de esclarecimento, tema crítico e criação do chamado
-- [ ] `TL` Implementar a abertura de chamado sem classificação quando o LLM cair
-- [ ] `TL` Criar endpoints de chamados, com autorização por papel
+- [x] `TL` Implementar a abertura de chamado sem classificação quando o LLM cair
+- [x] `TL` Criar endpoints de chamados, com autorização por papel (`/api/tickets`)
 - [ ] `TL` Implementar a entrega do outbox com `event_id` e novas tentativas
 - [ ] `TL` Implementar assinatura HMAC nos dois sentidos
 - [ ] `B` Subir o n8n no Compose, com banco próprio e editor privado

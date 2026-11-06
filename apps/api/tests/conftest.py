@@ -12,6 +12,8 @@ os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 os.environ["JWT_SECRET"] = "segredo-de-teste-com-mais-de-32-caracteres"
 os.environ["COOKIE_SECURE"] = "true"
 os.environ["SEED_PASSWORD"] = "senha-de-teste-do-seed"
+os.environ["CHAT_STREAM_DELAY_SECONDS"] = "0"
+os.environ["OPENROUTER_API_KEY"] = ""
 os.environ["UPLOAD_DIR"] = str(Path(tempfile.gettempdir()) / "h2d-test-uploads")
 
 import httpx  # noqa: E402
@@ -24,10 +26,24 @@ from sqlalchemy.pool import NullPool  # noqa: E402
 
 from h2d.db import get_session  # noqa: E402
 from h2d.kb.embeddings import FakeEmbedder  # noqa: E402
+from h2d.llm.client import FakeLLM  # noqa: E402
 from h2d.main import create_app  # noqa: E402
 from h2d.models import Role, User  # noqa: E402
+from h2d.routers.chat import get_embedder_dep as get_chat_embedder_dep  # noqa: E402
+from h2d.routers.chat import get_llm_dep  # noqa: E402
 from h2d.routers.kb import get_embedder_dep  # noqa: E402
 from h2d.security import hash_password  # noqa: E402
+
+
+def default_llm_handler(messages) -> str:
+    """Respostas padrão do modelo falso: cada passo do chat reconhecido pelo prompt de sistema."""
+    system = messages[0].content if messages and messages[0].role == "system" else ""
+    if "Reescreva" in system:
+        return messages[-1].content
+    if "SIM ou NAO" in system:
+        return "SIM"
+    return "Resposta de teste com base na fonte [1]."
+
 
 API_DIR = Path(__file__).resolve().parent.parent
 PASSWORD = "senha-correta-de-teste"
@@ -74,6 +90,9 @@ def app(session: AsyncSession):
     application.dependency_overrides[get_session] = override_session
     # Nos testes não se baixa nem se roda o modelo de verdade.
     application.dependency_overrides[get_embedder_dep] = FakeEmbedder
+    application.dependency_overrides[get_chat_embedder_dep] = FakeEmbedder
+    application.dependency_overrides[get_llm_dep] = lambda: application.state.fake_llm
+    application.state.fake_llm = FakeLLM(default_llm_handler)
     return application
 
 

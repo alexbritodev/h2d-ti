@@ -20,6 +20,21 @@ class Settings(BaseSettings):
     upload_dir: str = "/data/uploads"
     # Cache do modelo de embeddings (ADR-003). Na imagem de produção o modelo já vem baixado.
     fastembed_cache_dir: str = "/models"
+    # Modelo de linguagem (OpenRouter). O padrão é um modelo gratuito; a lista de reserva entra
+    # quando o primeiro estiver indisponível ou no limite. Modelos mudam: confira em openrouter.ai.
+    openrouter_model: str = "google/gemma-4-31b-it:free"
+    openrouter_fallback_models: str = (
+        "google/gemma-4-26b-a4b-it:free,nvidia/nemotron-3-ultra-550b-a55b:free"
+    )
+    llm_timeout_seconds: float = Field(default=60.0, gt=0)
+    # Teto de chamadas ao modelo por dia, somando todos os usuários. Modelo gratuito: 50 por dia
+    # (1000 com US$ 10 em créditos), então o padrão deixa folga.
+    llm_daily_request_limit: int = Field(default=45, ge=0)
+    # Limites do chat por conversa.
+    chat_max_user_messages: int = Field(default=30, gt=0)
+    chat_max_message_chars: int = Field(default=2000, gt=0)
+    # Pausa entre pedaços da resposta enviada em SSE (a resposta já vem pronta do modelo).
+    chat_stream_delay_seconds: float = Field(default=0.02, ge=0)
     # O seed cria usuários com uma senha única e conhecida. Em produção só roda se for
     # pedido de forma explícita, e só serve para demonstração com dados fictícios.
     allow_demo_seed: bool = False
