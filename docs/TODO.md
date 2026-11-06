@@ -145,11 +145,11 @@ Progresso
 - [ ] `TL` Implementar perguntas de esclarecimento, tema crítico e criação do chamado
 - [x] `TL` Implementar a abertura de chamado sem classificação quando o LLM cair
 - [x] `TL` Criar endpoints de chamados, com autorização por papel (`/api/tickets`)
-- [ ] `TL` Implementar a entrega do outbox com `event_id` e novas tentativas
-- [ ] `TL` Implementar assinatura HMAC nos dois sentidos
-- [ ] `B` Subir o n8n no Compose, com banco próprio e editor privado
-- [ ] `B` Criar o workflow 1 (aviso de chamado, com P1 avisando também o líder) e exportar para o repositório
-- [ ] `B` Criar o conjunto rotulado inicial, com 30 conversas
+- [x] `TL` Implementar a entrega do outbox com `event_id` e novas tentativas (espera crescente, desiste em 10; roda no worker)
+- [x] `TL` Implementar assinatura HMAC nos dois sentidos (API para n8n com cabeçalhos assinados; rotas `/api/hooks/n8n/*` conferem a assinatura)
+- [x] `B` Subir o n8n no Compose, com banco próprio e editor privado (imagem própria com os workflows; perfil `n8n` no desenvolvimento, com Mailpit)
+- [x] `B` Criar o workflow 1 (aviso de chamado, com P1 avisando também o líder) e exportar para o repositório (`n8n/workflows/01-aviso-de-chamado.json`; testado de ponta a ponta com o Mailpit)
+- [x] `B` Criar o conjunto rotulado inicial, com 30 conversas (`eval/classificacao_v0.jsonl`; `python -m h2d.eval_classification`)
 - [ ] ~~`B` Criar os CRUDs de usuários, técnicos, habilidades, categorias, SLAs e regras de roteamento, gravando em `audit_log`~~ (cadastros ficam no seed)
 - [x] `A` Criar a fila com `DataTable` e filtros (todos, em aberto, minha fila, triagem manual com contador, prioridade). Falta o atalho `j`/`k`
 - [x] `A` Criar o detalhe do chamado: resumo, o que já foi tentado, transcrição, linha do tempo com o motivo da atribuição, ações do técnico, reatribuição pelo admin e solução
@@ -157,10 +157,10 @@ Progresso
 
 **Critérios de saída (marco: fluxo mínimo)**
 - [ ] Demo completa na VPS, com usuário e técnico em navegadores separados
-- [ ] n8n fora do ar: o aviso chega ao religar, sem duplicar
+- [x] n8n fora do ar: o aviso chega ao religar, sem duplicar (testado com o n8n real: fila, nova tentativa e reentrega sem e-mail repetido)
 - [ ] LLM fora do ar: o chat oferece abrir chamado direto
 - [ ] Usuário só vê os próprios chamados
-- [ ] Acerto de categoria medido
+- [x] Acerto de categoria medido: em 12 das 30 conversas, categoria 11/12, subcategoria 10/12, prioridade exata 8/12 e até 1 nível 12/12 (depois de calibrar o prompt; antes a prioridade exata era 3/12). Faltam as outras 18 conversas e um conjunto escrito por outra pessoa
 
 ## F5. Automações
 
@@ -172,7 +172,7 @@ Progresso
 - [ ] ~~`B` Criar o workflow 4 (pesquisa de satisfação)~~
 - [ ] ~~`B` Criar o workflow 3 (relatório semanal)~~
 - [ ] `B` Configurar a poda do histórico de execuções
-- [ ] `TL` Guardar a `N8N_ENCRYPTION_KEY` fora da VPS
+- [ ] `TL` Guardar a `N8N_ENCRYPTION_KEY` fora da VPS (instrução no runbook; falta você guardar a cópia)
 
 **Critérios de saída**
 - [ ] Alertas de 75% e 100% disparam uma única vez cada

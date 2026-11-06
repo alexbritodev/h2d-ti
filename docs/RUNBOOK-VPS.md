@@ -37,9 +37,46 @@ Faça merge na `main` e, no Portainer, Stacks → `h2d-ti` → **Pull and redepl
 
 O rollback não desfaz migrações. Toda migração precisa funcionar também com o código da versão anterior: primeiro adicione, depois use, só então remova. Para voltar o código, reverta o commit na `main` e faça **Pull and redeploy**.
 
-## n8n
+## n8n e os avisos de chamado
 
-Sobe junto, com banco próprio (`n8n`) e sem endereço público (decisão D4). Se for preciso abrir o editor, o Caddy da VPS precisa de um bloco para `N8N_DOMAIN` apontando para `h2d-n8n:5678`, de preferência com senha ou restrito a um IP. Quem abrir primeiro vira dono: crie o usuário na hora. Guarde `N8N_ENCRYPTION_KEY` fora da VPS.
+O n8n sobe no stack, com banco próprio (`n8n`) e **sem endereço público** (decisão D4): o editor só é alcançado se o Caddy da VPS ganhar um bloco para `N8N_DOMAIN`, de preferência com senha ou restrito a um IP. A API entrega os eventos ao n8n pela rede interna (`http://h2d-n8n:5678/webhook/h2d-events`), assinados com HMAC.
+
+**Variáveis (Portainer):** `N8N_HMAC_SECRET` (obrigatória para os avisos; gere como os outros segredos), `TI_LEADER_EMAIL` (recebe a triagem manual e os P1), `MAIL_FROM` e `H2D_BASE_URL` (link no e-mail). Sem o `N8N_HMAC_SECRET` os eventos ficam na fila e nada é enviado.
+
+**Configuração única, depois do primeiro deploy:**
+
+1. Abra o editor do n8n e crie o dono (quem abrir primeiro vira dono). Guarde `N8N_ENCRYPTION_KEY` fora da VPS.
+2. No console do container `h2d-n8n`, importe o workflow (a imagem já leva os arquivos) e publique:
+
+```bash
+n8n import:workflow --separate --input=/home/node/h2d-workflows
+```
+
+```bash
+n8n publish:workflow --id=h2d-aviso-chamado
+```
+
+3. Reinicie o container `h2d-n8n`.
+4. No editor, crie a credencial **SMTP** com o nome exato `SMTP H2D` (servidor, porta, usuário e senha do e-mail que enviará os avisos) e abra o workflow "H2D 01 - Aviso de chamado" para conferir que o nó "Enviar e-mail" a usa.
+
+**Como conferir:** abra um chamado pelo assistente. O evento aparece em `outbox_events` como `delivered` e o aviso chega ao técnico responsável (ou ao líder, se for triagem manual).
+
+**Comportamento:**
+- Assinatura inválida: o n8n responde 401 e o evento continua pendente (nunca é dado como entregue).
+- n8n fora do ar ou e-mail falhando: o evento tenta de novo com espera crescente (30 s, 1 min, 2 min... até 1 h) e desiste depois de 10 tentativas, ficando `failed` para revisão.
+- O mesmo evento reenviado não duplica o e-mail (o n8n guarda os últimos 500 `event_id`).
+
+**Testar no seu PC:** `docker compose --profile n8n up -d` sobe o n8n (porta 5679) e o Mailpit (<http://localhost:8025>), que recebe os e-mails em vez de enviá-los. Importe a credencial e o workflow como acima.
+
+## Catálogo e técnicos em produção
+
+Os chamados só são atribuídos automaticamente se existirem categorias, habilidades, prazos de SLA e técnicos. O seed de demonstração cria tudo isso, mas também cria usuários de mentira; em produção use o script abaixo, no console do container `h2d-api`. Ele só cria o que falta:
+
+```bash
+TECHNICIAN_EMAILS=tecnico1@empresa.com,tecnico2@empresa.com python -m h2d.bootstrap_catalog
+```
+
+Cada e-mail precisa ser de um usuário que já existe, com papel técnico ou administrador (crie pelo painel em Cadastros). Sem técnicos, todo chamado vai para a triagem manual.
 
 ## Checklist dos critérios de saída da F1
 

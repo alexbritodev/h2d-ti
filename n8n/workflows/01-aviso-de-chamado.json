@@ -1,0 +1,204 @@
+{
+  "name": "H2D 01 - Aviso de chamado",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "h2d-events",
+        "responseMode": "responseNode",
+        "options": { "rawBody": true }
+      },
+      "id": "a1000000-0000-4000-8000-000000000001",
+      "name": "Evento do H2D",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "h2d-events"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Confere a assinatura HMAC (horário + corpo bruto). Pedido velho ou adulterado vira valid=false,\n// e o fluxo responde 401: o outbox da API nunca marca como entregue o que não foi processado.\nconst crypto = require('crypto');\nconst secret = $env.H2D_HMAC_SECRET;\nif (!secret) return [{ json: { valid: false, reason: 'H2D_HMAC_SECRET não configurado' } }];\nconst headers = $input.first().json.headers || {};\nconst ts = headers['x-h2d-timestamp'];\nconst sig = String(headers['x-h2d-signature'] || '');\nconst raw = await this.helpers.getBinaryDataBuffer(0, 'data');\nconst expected = 'sha256=' + crypto.createHmac('sha256', secret).update(`${ts}.`).update(raw).digest('hex');\nconst a = Buffer.from(sig);\nconst b = Buffer.from(expected);\nconst signatureOk = a.length === b.length && crypto.timingSafeEqual(a, b);\nconst age = Math.abs(Date.now() / 1000 - Number(ts));\nif (!ts || !signatureOk || !(age <= 300)) return [{ json: { valid: false, reason: 'Assinatura inválida' } }];\nconst event = JSON.parse(raw.toString('utf8'));\nconst store = $getWorkflowStaticData('global');\nconst seen = store.seen || [];\nreturn [{ json: { valid: true, duplicate: seen.includes(event.event_id), event } }];"
+      },
+      "id": "a1000000-0000-4000-8000-000000000002",
+      "name": "Verificar assinatura",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "version": 2, "leftValue": "", "caseSensitive": true, "typeValidation": "loose" },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c0",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000009",
+      "name": "Assinatura válida?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [480, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "version": 2, "leftValue": "", "caseSensitive": true, "typeValidation": "loose" },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.duplicate }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000003",
+      "name": "É duplicado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [720, -100]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Decide para quem e o que enviar, conforme o tipo do evento.\nconst e = $json.event;\nconst p = e.payload || {};\nconst leader = $env.TI_LEADER_EMAIL || '';\nconst base = ($env.H2D_BASE_URL || '').replace(/\\/$/, '');\nconst link = base ? `\\n\\nAbrir no sistema: ${base}/chamados` : '';\nlet to = '';\nlet cc = '';\nlet subject = '';\nlet text = '';\nif (e.type === 'ticket.created') {\n  to = (p.assignee && p.assignee.email) || leader;\n  if (p.notify_leader && leader && leader !== to) cc = leader;\n  subject = `[H2D] Novo chamado ${p.code}${p.priority ? ' (' + p.priority + ')' : ''}: ${p.summary}`;\n  text = `Novo chamado ${p.code}\\nPrioridade: ${p.priority || 'não definida'}\\nSolicitante: ${p.requester && p.requester.name}\\nResponsável: ${p.assignee ? p.assignee.name : 'ninguém ainda (triagem manual)'}\\nPrazo de resolução: ${p.resolution_due || 'não definido'}\\n\\n${p.summary}${link}`;\n} else if (e.type === 'ticket.assigned') {\n  to = (p.assignee && p.assignee.email) || '';\n  subject = `[H2D] Chamado ${p.code} atribuído a você`;\n  text = `O chamado ${p.code} foi atribuído a você.\\nPrioridade: ${p.priority || 'não definida'}\\nSolicitante: ${p.requester && p.requester.name}\\n\\n${p.summary}${link}`;\n} else if (e.type === 'ticket.resolved') {\n  to = (p.requester && p.requester.email) || '';\n  subject = `[H2D] Seu chamado ${p.code} foi resolvido`;\n  text = `Olá! O chamado ${p.code} (${p.summary}) foi resolvido pela equipe de TI.\\nSe o problema voltar, responda no próprio chamado.`;\n}\nreturn [{ json: { event_id: e.event_id, type: e.type, send: Boolean(to), to, cc, subject, text } }];"
+      },
+      "id": "a1000000-0000-4000-8000-000000000004",
+      "name": "Montar aviso",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [960, 20]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "version": 2, "leftValue": "", "caseSensitive": true, "typeValidation": "loose" },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c2",
+              "leftValue": "={{ $json.send }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000005",
+      "name": "Tem destinatário?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1200, 20]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.MAIL_FROM || 'h2d@localhost' }}",
+        "toEmail": "={{ $json.to }}",
+        "ccEmail": "={{ $json.cc }}",
+        "subject": "={{ $json.subject }}",
+        "emailFormat": "text",
+        "text": "={{ $json.text }}",
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000006",
+      "name": "Enviar e-mail",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1440, -40],
+      "onError": "continueErrorOutput",
+      "credentials": {
+        "smtp": { "id": "h2d-smtp", "name": "SMTP H2D" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Só depois do envio o evento vira \"processado\": se o e-mail falhar, a nova tentativa do outbox passa.\nconst id = $('Montar aviso').first().json.event_id;\nconst store = $getWorkflowStaticData('global');\nconst seen = store.seen || [];\nif (!seen.includes(id)) seen.push(id);\nstore.seen = seen.slice(-500);\nreturn [{ json: { ok: true, event_id: id } }];"
+      },
+      "id": "a1000000-0000-4000-8000-000000000007",
+      "name": "Registrar como processado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1680, 40]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: true } }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "a1000000-0000-4000-8000-000000000008",
+      "name": "Responder 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1920, -60]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: false, error: $json.reason || 'assinatura inválida' } }}",
+        "options": { "responseCode": 401 }
+      },
+      "id": "a1000000-0000-4000-8000-00000000000a",
+      "name": "Responder 401",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [720, 140]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: false, error: 'falha ao enviar o e-mail' } }}",
+        "options": { "responseCode": 500 }
+      },
+      "id": "a1000000-0000-4000-8000-00000000000b",
+      "name": "Responder 500",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1680, 220]
+    }
+  ],
+  "connections": {
+    "Evento do H2D": { "main": [[{ "node": "Verificar assinatura", "type": "main", "index": 0 }]] },
+    "Verificar assinatura": { "main": [[{ "node": "Assinatura válida?", "type": "main", "index": 0 }]] },
+    "Assinatura válida?": {
+      "main": [
+        [{ "node": "É duplicado?", "type": "main", "index": 0 }],
+        [{ "node": "Responder 401", "type": "main", "index": 0 }]
+      ]
+    },
+    "É duplicado?": {
+      "main": [
+        [{ "node": "Responder 200", "type": "main", "index": 0 }],
+        [{ "node": "Montar aviso", "type": "main", "index": 0 }]
+      ]
+    },
+    "Montar aviso": { "main": [[{ "node": "Tem destinatário?", "type": "main", "index": 0 }]] },
+    "Tem destinatário?": {
+      "main": [
+        [{ "node": "Enviar e-mail", "type": "main", "index": 0 }],
+        [{ "node": "Registrar como processado", "type": "main", "index": 0 }]
+      ]
+    },
+    "Enviar e-mail": {
+      "main": [
+        [{ "node": "Registrar como processado", "type": "main", "index": 0 }],
+        [{ "node": "Responder 500", "type": "main", "index": 0 }]
+      ]
+    },
+    "Registrar como processado": { "main": [[{ "node": "Responder 200", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "id": "h2d-aviso-chamado"
+}

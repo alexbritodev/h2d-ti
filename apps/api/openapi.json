@@ -2177,6 +2177,75 @@
         ]
       }
     },
+    "/api/hooks/n8n/ping": {
+      "post": {
+        "operationId": "n8nPing",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-h2d-timestamp",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-H2D-Timestamp"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-h2d-signature",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-H2D-Signature"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response N8Nping",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ping",
+        "tags": [
+          "hooks"
+        ]
+      }
+    },
     "/api/kb/chunks/{chunk_id}": {
       "get": {
         "description": "Trecho citado, para abrir a fonte. Trecho restrito responde 404, como se não existisse.",

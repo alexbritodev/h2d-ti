@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     chat_max_message_chars: int = Field(default=2000, gt=0)
     # Pausa entre pedaços da resposta enviada em SSE (a resposta já vem pronta do modelo).
     chat_stream_delay_seconds: float = Field(default=0.02, ge=0)
+    # n8n (rede interna do Docker). Sem URL e segredo, os eventos ficam na fila e nada é enviado.
+    n8n_webhook_url: str = ""
+    # Segredo compartilhado do HMAC, nos dois sentidos (API para n8n e n8n para API).
+    n8n_hmac_secret: SecretStr | None = None
     # O seed cria usuários com uma senha única e conhecida. Em produção só roda se for
     # pedido de forma explícita, e só serve para demonstração com dados fictícios.
     allow_demo_seed: bool = False
