@@ -83,7 +83,9 @@ async def test_reenvio_do_mesmo_arquivo_nao_cria_job(client, make_user):
     assert len((await client.get("/api/kb/jobs")).json()) == 1
 
 
-@pytest.mark.parametrize(("nome", "dados"), [("manual.pdf", b"%PDF"), ("vazio.md", b"")])
+@pytest.mark.parametrize(
+    ("nome", "dados"), [("manual.exe", b"MZ"), ("falso.pdf", b"texto"), ("vazio.md", b"")]
+)
 async def test_arquivo_invalido_recebe_422_com_motivo(client, make_user, nome, dados):
     await _login(client, make_user, Role.ADMIN)
 

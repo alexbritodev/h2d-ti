@@ -32,6 +32,7 @@ Faça merge na `main` e, no Portainer, Stacks → `h2d-ti` → **Pull and redepl
 - **Bind mount com caminho relativo não funciona** no Portainer: o Docker cria uma pasta vazia no lugar do arquivo. Por isso o script de init do banco vai dentro da imagem (`infra/db/Dockerfile`). Não use `./arquivo:/destino` no compose.
 - O script de init do banco roda **só na primeira criação do volume**. Mudar a senha do banco depois não altera a que o Postgres já guardou.
 - Se refizer o stack, **não marque** a remoção de volumes, a menos que queira apagar o banco.
+- **O Hugging Face limita o download do modelo de embeddings (erro 429)**, e isso já derrubou um build. O Dockerfile tenta 5 vezes e não quebra mais o deploy: se não conseguir, a API baixa o modelo na primeira execução (com novas tentativas) e o guarda no volume `h2d_models`. Se o 429 persistir, crie um token gratuito em huggingface.co/settings/tokens e cadastre `HF_TOKEN` nas variáveis do stack.
 
 ## Rollback
 

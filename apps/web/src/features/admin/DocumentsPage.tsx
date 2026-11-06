@@ -216,7 +216,7 @@ export function DocumentsPage() {
             <UploadCloud aria-hidden className="mb-3 size-9 text-accent" />
             <span className="font-medium">{uploading ? "Enviando…" : "Arraste arquivos ou clique para escolher"}</span>
             <span className="text-xs text-muted">
-              Markdown ou texto (.md, .txt), até {MAX_UPLOAD_MB} MB cada. PDF e DOCX ainda não são lidos.
+              Markdown, texto, PDF ou DOCX, até {MAX_UPLOAD_MB} MB cada. PDF digitalizado (só imagem) não é lido.
             </span>
             <input
               type="file"
@@ -232,7 +232,7 @@ export function DocumentsPage() {
           <Field
             label="Visibilidade dos novos documentos"
             htmlFor="upload-visibility"
-            hint="Por padrão, vale o campo “visibilidade” do cabeçalho do manual; sem cabeçalho, o documento é público."
+            hint="Manual em Markdown pode trazer o campo “visibilidade” no cabeçalho. PDF e DOCX não têm cabeçalho: sem escolher aqui, o documento fica público."
           >
             <Select
               id="upload-visibility"

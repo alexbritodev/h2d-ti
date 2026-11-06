@@ -93,7 +93,7 @@ Progresso
 - [x] `TL` Migrar o grupo Conhecimento (migração 0002: `kb_documents`, versões, `kb_chunks` com `vector(384)`, HNSW e `tsvector`, `ingestion_jobs`)
 - [x] `TL` Configurar o worker: **sem Procrastinate**; a fila é a própria tabela `ingestion_jobs`, com `SKIP LOCKED` e reenfileiramento de job travado (`h2d.worker`, serviço `worker` no compose)
 - [x] `TL` Implementar registro, SHA-256 e guarda do arquivo original (volume `h2d_uploads`)
-- [ ] `TL` Implementar parsing com Docling e limpeza: **hoje só Markdown e texto** (`.md`, `.txt`); PDF e DOCX dependem de decidir o Docling
+- [x] `TL` Implementar parsing e limpeza: Markdown, texto, **PDF e DOCX** por extração de texto (`h2d.kb.parsing`, bibliotecas leves; o **Docling foi descartado** pelo peso na VPS). Reconhece títulos, listas e tabelas, tira cabeçalho, rodapé e número de página repetidos, e recusa com motivo PDF digitalizado (sem OCR), com senha ou quebrado
 - [x] `TL` Implementar chunking por título, sem partir tabelas nem passos numerados (`h2d.kb.text`, testado nos 15 manuais; falta medir o limite de tokens do MiniLM e ligar ao pipeline)
 - [x] `TL` Implementar embeddings em lote, publicação atômica e arquivamento
 - [x] `TL` Implementar busca híbrida com RRF, filtro de visibilidade e varredura iterativa

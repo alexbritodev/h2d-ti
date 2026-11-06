@@ -9,7 +9,7 @@ Central de atendimento de TI em que um assistente com IA resolve o que os manuai
 | Fase | Situação |
 | --- | --- |
 | F1 Fundação | No ar na VPS (stack do Portainer, HTTPS). Faltam fechar os critérios de saída (#13) |
-| F2 Ingestão | Pronta: envio de manuais, fila com worker, embeddings locais, busca híbrida com permissão e telas de Documentos e Base de conhecimento. Só lê Markdown e texto (PDF e DOCX dependem do Docling) |
+| F2 Ingestão | Pronta: envio de manuais, fila com worker, embeddings locais, busca híbrida com permissão e telas de Documentos e Base de conhecimento. Lê Markdown, texto, PDF e DOCX (PDF digitalizado, só imagem, não: não há OCR) |
 | F3 Chat | Pronta: assistente com fontes citadas, mascaramento de dados sensíveis, limites e o modelo do OpenRouter |
 | F4 Chamados | Pronta: classificação, prioridade, SLA, roteador, triagem manual, telas e avisos por e-mail via n8n (falta só configurar o SMTP na VPS) |
 | F5 Automações | Pronta: vigia de SLA (alertas de 75% e 100%, uma vez cada), workflow de erro global e poda do histórico do n8n |
@@ -19,7 +19,7 @@ O detalhe item por item está no [TODO](docs/TODO.md).
 
 ## O que o sistema faz
 
-- **Base de conhecimento:** o administrador envia manuais (`.md` ou `.txt`) em *Administração → Documentos*. Um worker divide o texto por títulos, gera os vetores e publica a versão de uma vez só. Arquivo repetido não é reprocessado, e a versão anterior só sai depois da nova estar pronta.
+- **Base de conhecimento:** o administrador envia manuais (`.md`, `.txt`, `.pdf` ou `.docx`) em *Administração → Documentos*. Um worker divide o texto por títulos, gera os vetores e publica a versão de uma vez só. Arquivo repetido não é reprocessado, e a versão anterior só sai depois da nova estar pronta.
 - **Permissão:** cada documento é público ou restrito à TI. Usuário comum nunca recebe trecho restrito, nem na busca, nem no chat, nem na biblioteca (o filtro roda dentro do SQL e tem teste automatizado).
 - **Assistente:** responde só com base nos trechos encontrados, cita a fonte de cada afirmação e confere se a resposta é sustentada por eles. Se não sabe, diz que não encontrou e oferece abrir um chamado.
 - **Dados sensíveis:** senha, CPF, cartão e token são escondidos antes de qualquer gravação, log ou envio ao modelo.

@@ -10,7 +10,7 @@ export type LibraryItem = components["schemas"]["LibraryItem"];
 export type DocumentView = components["schemas"]["DocumentView"];
 export type Visibility = components["schemas"]["Visibility"];
 
-export const ACCEPTED_EXTENSIONS = ".md,.markdown,.txt";
+export const ACCEPTED_EXTENSIONS = ".md,.markdown,.txt,.pdf,.docx";
 export const MAX_UPLOAD_MB = 10;
 
 export const documentsQuery = queryOptions({

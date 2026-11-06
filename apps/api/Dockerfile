@@ -30,8 +30,14 @@ COPY migrations ./migrations
 COPY alembic.ini ./
 RUN useradd --system --no-create-home h2d     && mkdir -p /data/uploads /models     && chown -R h2d /data /models
 USER h2d
-# O modelo de embeddings (ADR-003) vem baixado na imagem: a primeira busca não espera download
-# e o servidor não depende da internet para rodar.
-RUN python -c "from fastembed import TextEmbedding; TextEmbedding('sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2', cache_dir='/models')"
+# O modelo de embeddings (ADR-003) tenta vir baixado na imagem: a primeira busca não espera. O
+# Hugging Face limita pedidos sem login (erro 429) e isso já derrubou um deploy; por isso são
+# várias tentativas com espera e a falha NÃO quebra o build. Sem o modelo na imagem, ele é baixado
+# na primeira execução e fica guardado no volume h2d_models (ver docker-compose.yml).
+RUN for tentativa in 1 2 3 4 5; do \
+      python -c "from fastembed import TextEmbedding; TextEmbedding('sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2', cache_dir='/models')" && exit 0; \
+      echo "Download do modelo falhou (tentativa $tentativa de 5)"; sleep $((tentativa * 30)); \
+    done; \
+    echo "AVISO: modelo nao baixado no build; sera baixado no primeiro uso."; exit 0
 # Um processo só: o modelo fica carregado uma vez (memória). O worker roda em outro container.
 CMD ["uvicorn", "h2d.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

@@ -7,6 +7,7 @@ Regras que os testes garantem:
 - mudar a visibilidade do documento atualiza os trechos na mesma transação.
 """
 
+import asyncio
 import re
 import uuid
 from dataclasses import dataclass
@@ -17,6 +18,7 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from h2d.kb.embeddings import Embedder, embed_async
+from h2d.kb.parsing import ParsingError, to_markdown
 from h2d.kb.text import chunk_markdown, sha256_hex, split_front_matter
 from h2d.models import (
     IngestionJob,
@@ -28,8 +30,8 @@ from h2d.models import (
     Visibility,
 )
 
-# Formatos aceitos por enquanto. PDF e DOCX exigem o Docling (decisão pendente).
-SUPPORTED_EXTENSIONS = {".md", ".markdown", ".txt"}
+# PDF e DOCX são lidos por extração de texto (h2d.kb.parsing). PDF digitalizado não tem OCR.
+SUPPORTED_EXTENSIONS = {".md", ".markdown", ".txt", ".pdf", ".docx"}
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 MAX_ATTEMPTS = 3
 
@@ -51,7 +53,11 @@ def _safe_name(name: str) -> str:
     return cleaned or "arquivo"
 
 
-def check_upload(filename: str, size: int) -> None:
+# Assinatura de cada formato binário: barra arquivo renomeado e envio quebrado antes de gravar.
+_MAGIC = {".pdf": b"%PDF", ".docx": b"PK"}
+
+
+def check_upload(filename: str, size: int, head: bytes = b"") -> None:
     extension = Path(filename).suffix.lower()
     if extension not in SUPPORTED_EXTENSIONS:
         aceitos = ", ".join(sorted(SUPPORTED_EXTENSIONS))
@@ -60,6 +66,9 @@ def check_upload(filename: str, size: int) -> None:
         raise IngestionError("O arquivo está vazio")
     if size > MAX_UPLOAD_BYTES:
         raise IngestionError(f"O arquivo passa de {MAX_UPLOAD_BYTES // (1024 * 1024)} MB")
+    magic = _MAGIC.get(extension)
+    if magic is not None and not head.startswith(magic):
+        raise IngestionError(f"O arquivo não é um {extension.lstrip('.').upper()} válido")
 
 
 async def register_upload(
@@ -76,7 +85,7 @@ async def register_upload(
     document_id: uuid.UUID | None = None,
 ) -> Registered:
     """Guarda o arquivo e enfileira o job. Arquivo repetido devolve o que já existe."""
-    check_upload(filename, len(data))
+    check_upload(filename, len(data), data[:8])
     sha = sha256_hex(data)
 
     duplicate_query = select(KbDocumentVersion).where(
@@ -159,15 +168,11 @@ async def claim_next_job(session: AsyncSession) -> IngestionJob | None:
     return job
 
 
-def _read_text(path: str) -> str:
+def _read_bytes(path: str) -> bytes:
     try:
-        raw = Path(path).read_bytes()
+        return Path(path).read_bytes()
     except OSError as error:
         raise IngestionError(f"Não foi possível ler o arquivo enviado: {error}") from error
-    try:
-        return raw.decode("utf-8")
-    except UnicodeDecodeError as error:
-        raise IngestionError("O arquivo não está em UTF-8") from error
 
 
 async def process_job(session: AsyncSession, job: IngestionJob, embedder: Embedder) -> None:
@@ -175,7 +180,13 @@ async def process_job(session: AsyncSession, job: IngestionJob, embedder: Embedd
     version = await session.get_one(KbDocumentVersion, job.version_id)
     document = await session.get_one(KbDocument, version.document_id)
 
-    _, body = split_front_matter(_read_text(version.file_path))
+    raw = await asyncio.to_thread(_read_bytes, version.file_path)
+    try:
+        # Ler PDF é trabalho de CPU: roda fora do laço de eventos.
+        markdown = await asyncio.to_thread(to_markdown, version.original_filename, raw)
+    except ParsingError as error:
+        raise IngestionError(str(error)) from error
+    _, body = split_front_matter(markdown)
     chunks = chunk_markdown(body, title=document.title)
     if not chunks:
         raise IngestionError("Não encontrei texto no arquivo")

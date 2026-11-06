@@ -108,12 +108,44 @@ def _split_large(block: str, max_words: int) -> list[str]:
     pieces: list[str] = []
     current: list[str] = []
     for line in lines:
+        if _words(line) > max_words and not header:
+            # Linha enorme (comum em PDF, onde o parágrafo vem numa linha só): parte por frases.
+            if current:
+                pieces.append("\n".join(current))
+                current = []
+            pieces.extend(_split_sentences(line, max_words))
+            continue
         if current and _words("\n".join([*header, *current, line])) > max_words:
             pieces.append("\n".join([*header, *current]))
             current = []
         current.append(line)
     if current:
         pieces.append("\n".join([*header, *current]))
+    return pieces
+
+
+def _split_sentences(text: str, max_words: int) -> list[str]:
+    """Junta frases até o limite. Frase maior que o limite é cortada por palavras."""
+    pieces: list[str] = []
+    current: list[str] = []
+    count = 0
+    for sentence in re.split(r"(?<=[.!?])\s+", text):
+        words = sentence.split()
+        if len(words) > max_words:
+            if current:
+                pieces.append(" ".join(current))
+                current, count = [], 0
+            pieces.extend(
+                " ".join(words[i : i + max_words]) for i in range(0, len(words), max_words)
+            )
+            continue
+        if count + len(words) > max_words and current:
+            pieces.append(" ".join(current))
+            current, count = [], 0
+        current.append(sentence)
+        count += len(words)
+    if current:
+        pieces.append(" ".join(current))
     return pieces
 
 

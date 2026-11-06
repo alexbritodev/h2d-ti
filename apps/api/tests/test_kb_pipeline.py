@@ -116,7 +116,7 @@ async def test_mesmo_arquivo_nao_reprocessa(session, tmp_path):
 
 
 @pytest.mark.parametrize(
-    ("nome", "tamanho"), [("manual.pdf", 10), ("vazio.md", 0), ("grande.md", 11 * 1024 * 1024)]
+    ("nome", "tamanho"), [("manual.exe", 10), ("vazio.md", 0), ("grande.md", 11 * 1024 * 1024)]
 )
 async def test_arquivo_invalido_e_recusado(session, tmp_path, nome, tamanho):
     with pytest.raises(IngestionError):
