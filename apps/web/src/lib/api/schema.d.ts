@@ -367,6 +367,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tickets/technicians": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Technicians
+         * @description Técnicos com carga atual e habilidades: base da reatribuição feita pelo admin.
+         */
+        get: operations["listTechnicians"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tickets/{ticket_id}": {
         parameters: {
             query?: never;
@@ -799,6 +819,22 @@ export interface components {
             resolution_due: string | null;
             /** State */
             state: string;
+        };
+        /** TechnicianOut */
+        TechnicianOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Available */
+            is_available: boolean;
+            /** Name */
+            name: string;
+            /** Open Tickets */
+            open_tickets: number;
+            /** Skills */
+            skills: string[];
         };
         /** TicketDetail */
         TicketDetail: {
@@ -1722,6 +1758,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TicketOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listTechnicians: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                h2d_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TechnicianOut"][];
                 };
             };
             /** @description Validation Error */

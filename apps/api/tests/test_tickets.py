@@ -345,3 +345,18 @@ async def test_comentarios_so_do_solicitante_e_da_ti(client, make_user, session,
 
 async def test_sem_login_nao_ve_chamados(client):
     assert (await client.get("/api/tickets")).status_code == 401
+
+
+async def test_lista_de_tecnicos_mostra_carga_e_habilidades_so_para_a_ti(
+    client, make_user, session, app
+):
+    catalog = await _catalog(session, make_user)
+    _use_classification(app, _classification())
+    await _login(client, make_user, email="ana@h2d.local")
+    assert (await client.get("/api/tickets/technicians")).status_code == 403
+    await _escalate(client)
+    await _relogin(client, catalog["tech_user"].email)
+
+    tecnicos = (await client.get("/api/tickets/technicians")).json()
+
+    assert [(t["open_tickets"], t["skills"]) for t in tecnicos] == [(1, ["redes-vpn"])]

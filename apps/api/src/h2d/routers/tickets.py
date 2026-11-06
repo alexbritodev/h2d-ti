@@ -6,14 +6,16 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
-from sqlalchemy import case, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from h2d.deps import CurrentUser, SessionDep, require_role
 from h2d.models import (
     Priority,
     Role,
+    Skill,
     Technician,
+    TechnicianSkill,
     Ticket,
     TicketEvent,
     TicketStatus,
@@ -26,6 +28,14 @@ router = APIRouter(prefix="/tickets", tags=["tickets"])
 
 StaffActor = Annotated[User, Depends(require_role(Role.TECH, Role.ADMIN))]
 AdminActor = Annotated[User, Depends(require_role(Role.ADMIN))]
+
+
+class TechnicianOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    is_available: bool
+    open_tickets: int
+    skills: list[str]
 
 
 class SlaOut(BaseModel):
@@ -177,6 +187,44 @@ async def list_tickets(
         query.order_by(rank, Ticket.created_at).limit(limit).offset(offset)
     )
     return [await _out(session, t) for t in tickets]
+
+
+@router.get("/technicians", operation_id="listTechnicians")
+async def list_technicians(session: SessionDep, _: StaffActor) -> list[TechnicianOut]:
+    """Técnicos com carga atual e habilidades: base da reatribuição feita pelo admin."""
+    rows = (
+        await session.execute(
+            select(Technician, User.name)
+            .join(User, User.id == Technician.user_id)
+            .order_by(User.name)
+        )
+    ).all()
+    open_count = dict(
+        (
+            await session.execute(
+                select(Ticket.technician_id, func.count())
+                .where(Ticket.technician_id.is_not(None), Ticket.status != TicketStatus.RESOLVED)
+                .group_by(Ticket.technician_id)
+            )
+        ).all()
+    )
+    skills: dict[uuid.UUID, list[str]] = {}
+    for technician_id, name in await session.execute(
+        select(TechnicianSkill.technician_id, Skill.name).join(
+            Skill, Skill.id == TechnicianSkill.skill_id
+        )
+    ):
+        skills.setdefault(technician_id, []).append(name)
+    return [
+        TechnicianOut(
+            id=t.id,
+            name=name,
+            is_available=t.is_available,
+            open_tickets=open_count.get(t.id, 0),
+            skills=sorted(skills.get(t.id, [])),
+        )
+        for t, name in rows
+    ]
 
 
 @router.get("/{ticket_id}", operation_id="getTicket")

@@ -1,15 +1,15 @@
-import { Plus } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
+import { MessageCircle } from "lucide-react";
+import { useState } from "react";
 
 import { PageHeader } from "@/components/PageHeader";
-import { PriorityBadge, StatusBadge } from "@/components/tickets";
 import { Button } from "@/components/ui/button";
 import { type Column, DataTable } from "@/components/ui/data-table";
-import { Input } from "@/components/ui/input";
-import { Card, Field, Modal, Select } from "@/components/ui/primitives";
-import { demoToast } from "@/components/ui/toast";
-import { CATEGORIES, type Ticket, TICKETS } from "@/lib/demo/data";
+import { Card } from "@/components/ui/primitives";
 
+import { type Ticket, ticketsQuery } from "./api";
+import { formatDate, PriorityBadge, SlaBadge, StatusBadge } from "./badges";
 import { TicketDrawer } from "./TicketDrawer";
 
 const COLUMNS: Column<Ticket>[] = [
@@ -20,51 +20,48 @@ const COLUMNS: Column<Ticket>[] = [
     render: (ticket) => <span className="font-mono text-xs">{ticket.code}</span>,
   },
   {
-    key: "subject",
+    key: "summary",
     header: "Assunto",
-    sortValue: (ticket) => ticket.subject,
-    render: (ticket) => <span className="font-medium">{ticket.subject}</span>,
+    sortValue: (ticket) => ticket.summary,
+    render: (ticket) => <span className="font-medium">{ticket.summary}</span>,
   },
-  { key: "category", header: "Categoria", render: (ticket) => ticket.category },
   { key: "priority", header: "Prioridade", render: (t) => <PriorityBadge priority={t.priority} /> },
   { key: "status", header: "Status", render: (t) => <StatusBadge status={t.status} /> },
+  { key: "sla", header: "Prazo", render: (t) => <SlaBadge sla={t.sla} /> },
   {
     key: "updated",
     header: "Atualizado",
-    render: (ticket) => <span className="whitespace-nowrap text-muted">{ticket.updatedAt}</span>,
+    sortValue: (ticket) => ticket.updated_at,
+    render: (ticket) => <span className="whitespace-nowrap text-muted">{formatDate(ticket.updated_at)}</span>,
   },
 ];
 
-const MY_TICKETS = TICKETS.filter((ticket) => ticket.requester === "Fátima Financeiro");
-
 export function MyTicketsPage() {
-  const [creating, setCreating] = useState(false);
-  const [opened, setOpened] = useState<Ticket | null>(null);
-
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    setCreating(false);
-    demoToast("Chamado aberto");
-  }
+  const tickets = useQuery(ticketsQuery());
+  const [openedId, setOpenedId] = useState<string | null>(null);
+  const rows = tickets.data ?? [];
 
   return (
     <section>
       <PageHeader
+        live
         title="Meus chamados"
         description="Acompanhe o andamento dos chamados que você abriu."
         actions={
-          <Button variant="primary" onClick={() => setCreating(true)}>
-            <Plus aria-hidden className="size-4" />
-            Novo chamado
-          </Button>
+          <Link to="/chat">
+            <Button variant="primary">
+              <MessageCircle aria-hidden className="size-4" />
+              Abrir pelo assistente
+            </Button>
+          </Link>
         }
       />
 
       <div className="mb-4 grid gap-4 sm:grid-cols-3">
         {[
-          ["Em aberto", MY_TICKETS.filter((t) => t.status !== "resolvido").length],
-          ["Aguardando você", MY_TICKETS.filter((t) => t.status === "aguardando").length],
-          ["Resolvidos", MY_TICKETS.filter((t) => t.status === "resolvido").length],
+          ["Em aberto", rows.filter((t) => t.status !== "resolved").length],
+          ["Aguardando você", rows.filter((t) => t.status === "waiting_user").length],
+          ["Resolvidos", rows.filter((t) => t.status === "resolved").length],
         ].map(([label, value]) => (
           <Card key={label} className="p-5">
             <p className="text-sm text-muted">{label}</p>
@@ -74,61 +71,23 @@ export function MyTicketsPage() {
       </div>
 
       <Card className="overflow-hidden">
-        <DataTable
-          label="Meus chamados"
-          columns={COLUMNS}
-          rows={MY_TICKETS}
-          rowKey={(ticket) => ticket.code}
-          onRowClick={setOpened}
-          empty="Você ainda não tem chamados."
-        />
+        {tickets.isError ? (
+          <p role="alert" className="p-5 text-danger">
+            Não foi possível carregar os chamados.
+          </p>
+        ) : (
+          <DataTable
+            label="Meus chamados"
+            columns={COLUMNS}
+            rows={rows}
+            rowKey={(ticket) => ticket.id}
+            onRowClick={(ticket) => setOpenedId(ticket.id)}
+            empty="Você ainda não abriu chamados. Converse com o assistente: se ele não resolver, abre um para você."
+          />
+        )}
       </Card>
 
-      <TicketDrawer ticket={opened} onClose={() => setOpened(null)} readOnly />
-
-      <Modal
-        open={creating}
-        onOpenChange={setCreating}
-        title="Novo chamado"
-        description="Conte o que aconteceu. Quanto mais detalhes, mais rápida a solução."
-        footer={
-          <>
-            <Button onClick={() => setCreating(false)}>Cancelar</Button>
-            <Button variant="primary" type="submit" form="new-ticket">
-              Abrir chamado
-            </Button>
-          </>
-        }
-      >
-        <form id="new-ticket" onSubmit={submit} className="space-y-4">
-          <Field label="Assunto" htmlFor="ticket-subject">
-            <Input id="ticket-subject" required placeholder="Ex.: VPN não conecta" />
-          </Field>
-          <Field label="Categoria" htmlFor="ticket-category">
-            <Select id="ticket-category" required defaultValue="">
-              <option value="" disabled>
-                Selecione
-              </option>
-              {CATEGORIES.map((category) => (
-                <option key={category.name}>{category.name}</option>
-              ))}
-            </Select>
-          </Field>
-          <Field
-            label="Descrição"
-            htmlFor="ticket-description"
-            hint="Nunca informe sua senha. A TI não precisa dela."
-          >
-            <textarea
-              id="ticket-description"
-              required
-              rows={4}
-              placeholder="Sistema afetado, mensagem de erro, desde quando..."
-              className="w-full rounded-lg border border-border bg-surface p-3 placeholder:text-muted"
-            />
-          </Field>
-        </form>
-      </Modal>
+      <TicketDrawer ticketId={openedId} onClose={() => setOpenedId(null)} />
     </section>
   );
 }

@@ -918,6 +918,43 @@
         "title": "SlaOut",
         "type": "object"
       },
+      "TechnicianOut": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_available": {
+            "title": "Is Available",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "open_tickets": {
+            "title": "Open Tickets",
+            "type": "integer"
+          },
+          "skills": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Skills",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "is_available",
+          "open_tickets",
+          "skills"
+        ],
+        "title": "TechnicianOut",
+        "type": "object"
+      },
       "TicketDetail": {
         "properties": {
           "already_tried": {
@@ -2838,6 +2875,60 @@
           }
         },
         "summary": "List Tickets",
+        "tags": [
+          "tickets"
+        ]
+      }
+    },
+    "/api/tickets/technicians": {
+      "get": {
+        "description": "Técnicos com carga atual e habilidades: base da reatribuição feita pelo admin.",
+        "operationId": "listTechnicians",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "h2d_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "H2D Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TechnicianOut"
+                  },
+                  "title": "Response Listtechnicians",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Technicians",
         "tags": [
           "tickets"
         ]

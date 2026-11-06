@@ -120,9 +120,9 @@ Progresso
 - [x] `TL` Implementar o fluxo do chat (sem LangGraph): reescrita, busca, geração com trechos delimitados e citação
 - [x] `TL` Implementar checagem de fidelidade, resposta só com citação e gatilhos de escalonamento (tema crítico, pedido de humano, duas respostas sem ajudar)
 - [x] `TL` Criar endpoints de conversas, histórico, mensagens em SSE (resposta já pronta, enviada em pedaços), feedback, `resolve` e `escalate` (`/api/chat/*`)
-- [ ] `A` Criar a tela de chat com SSE via `fetch`, começando com stream simulado
-- [ ] `A` Criar o painel de fontes, `CitationCard` e 👍/👎
-- [ ] `A` Incluir o botão "falar com a TI" e o aviso sobre uso de IA
+- [x] `A` Criar a tela de chat com SSE via `fetch` (resposta pronta enviada em pedaços; Markdown, "Nova conversa", conversa encerrada bloqueia o campo)
+- [x] `A` Criar o painel de fontes (clicar abre o trecho citado) e 👍/👎
+- [x] `A` Incluir o botão "falar com a TI" e o aviso sobre uso de IA
 - [ ] `B` Rodar a avaliação no CI (10 casos por PR, conjunto completo à noite)
 - [ ] `B` Escrever casos de prompt injection nos manuais de teste
 - [ ] Todos: definir as metas de acerto com base nas medições
@@ -151,9 +151,9 @@ Progresso
 - [ ] `B` Criar o workflow 1 (aviso de chamado, com P1 avisando também o líder) e exportar para o repositório
 - [ ] `B` Criar o conjunto rotulado inicial, com 30 conversas
 - [ ] ~~`B` Criar os CRUDs de usuários, técnicos, habilidades, categorias, SLAs e regras de roteamento, gravando em `audit_log`~~ (cadastros ficam no seed)
-- [ ] `A` Criar a fila com `DataTable`, filtros e `j`/`k`
-- [ ] `A` Criar o detalhe do chamado: resumo, transcrição, fontes, ações e solução
-- [ ] `A` Criar "meus chamados" com linha do tempo
+- [x] `A` Criar a fila com `DataTable` e filtros (todos, em aberto, minha fila, triagem manual com contador, prioridade). Falta o atalho `j`/`k`
+- [x] `A` Criar o detalhe do chamado: resumo, o que já foi tentado, transcrição, linha do tempo com o motivo da atribuição, ações do técnico, reatribuição pelo admin e solução
+- [x] `A` Criar "meus chamados" com linha do tempo e comentários
 
 **Critérios de saída (marco: fluxo mínimo)**
 - [ ] Demo completa na VPS, com usuário e técnico em navegadores separados

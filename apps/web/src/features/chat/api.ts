@@ -1,0 +1,130 @@
+import { api } from "@/lib/api/client";
+import type { components } from "@/lib/api/schema";
+
+export type Citation = components["schemas"]["Citation"];
+export type TicketRef = components["schemas"]["TicketRef"];
+export type ConversationStatus = components["schemas"]["ConversationStatus"];
+
+export type ChatAction = "answered" | "not_found" | "escalate" | "unavailable" | "limit";
+
+export interface StreamHandlers {
+  onToken: (text: string) => void;
+  onSources: (citations: Citation[]) => void;
+  onDone: (done: {
+    message_id: string;
+    action: ChatAction;
+    conversation_status: ConversationStatus;
+    ticket: TicketRef | null;
+  }) => void;
+  onError: (detail: string) => void;
+}
+
+function parseEvent(block: string): { event: string; data: unknown } | null {
+  const lines = block.split("\n");
+  const event = lines.find((line) => line.startsWith("event: "))?.slice(7);
+  const data = lines.find((line) => line.startsWith("data: "))?.slice(6);
+  if (!event || data === undefined) return null;
+  try {
+    return { event, data: JSON.parse(data) };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Envia a mensagem e lê a resposta em SSE. Usa fetch (e não EventSource) porque o envio é um POST.
+ * Os eventos chegam na ordem: status, token (vários), sources, done. Um erro de limite vem como
+ * evento "error".
+ */
+export async function sendMessage(
+  conversationId: string,
+  content: string,
+  handlers: StreamHandlers,
+): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(`/api/chat/conversations/${conversationId}/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ content }),
+    });
+  } catch {
+    handlers.onError("Sem conexão com o servidor.");
+    return;
+  }
+  if (!response.ok || !response.body) {
+    const body: unknown = await response.json().catch(() => null);
+    const detail = (body as { detail?: unknown } | null)?.detail;
+    handlers.onError(
+      response.status === 409
+        ? "Esta conversa já foi encerrada ou encaminhada à TI."
+        : typeof detail === "string"
+          ? detail
+          : "Não foi possível enviar a mensagem.",
+    );
+    return;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let end = buffer.indexOf("\n\n");
+    while (end !== -1) {
+      const parsed = parseEvent(buffer.slice(0, end));
+      buffer = buffer.slice(end + 2);
+      end = buffer.indexOf("\n\n");
+      if (!parsed) continue;
+      const data = parsed.data as Record<string, unknown>;
+      if (parsed.event === "token") handlers.onToken(String(data.text ?? ""));
+      else if (parsed.event === "sources") handlers.onSources((data.citations as Citation[]) ?? []);
+      else if (parsed.event === "done") handlers.onDone(data as unknown as Parameters<StreamHandlers["onDone"]>[0]);
+      else if (parsed.event === "error") handlers.onError(String(data.detail ?? "Erro ao responder."));
+    }
+  }
+}
+
+export async function createConversation(): Promise<string | null> {
+  const { data } = await api.POST("/api/chat/conversations");
+  return data?.id ?? null;
+}
+
+export async function sendFeedback(messageId: string, value: 1 | -1) {
+  const { data } = await api.POST("/api/chat/messages/{message_id}/feedback", {
+    params: { path: { message_id: messageId } },
+    body: { value },
+  });
+  return data ?? null;
+}
+
+export async function escalate(conversationId: string): Promise<TicketRef | null> {
+  const { data } = await api.POST("/api/chat/conversations/{conversation_id}/escalate", {
+    params: { path: { conversation_id: conversationId } },
+  });
+  return data ?? null;
+}
+
+export async function resolveConversation(conversationId: string) {
+  const { data } = await api.POST("/api/chat/conversations/{conversation_id}/resolve", {
+    params: { path: { conversation_id: conversationId } },
+  });
+  return data ?? null;
+}
+
+export async function loadConversation(conversationId: string) {
+  const { data } = await api.GET("/api/chat/conversations/{conversation_id}", {
+    params: { path: { conversation_id: conversationId } },
+  });
+  return data ?? null;
+}
+
+export async function loadChunk(chunkId: string) {
+  const { data } = await api.GET("/api/kb/chunks/{chunk_id}", {
+    params: { path: { chunk_id: chunkId } },
+  });
+  return data ?? null;
+}
