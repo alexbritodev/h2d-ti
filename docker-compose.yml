@@ -156,6 +156,11 @@ services:
       N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
       NODE_FUNCTION_ALLOW_BUILTIN: crypto
       H2D_HMAC_SECRET: ${N8N_HMAC_SECRET:-}
+      H2D_API_URL: http://h2d-api:8000
+      # Poda do histórico: guarda só as execuções com erro e por 7 dias.
+      EXECUTIONS_DATA_PRUNE: "true"
+      EXECUTIONS_DATA_MAX_AGE: "168"
+      EXECUTIONS_DATA_SAVE_ON_SUCCESS: none
       H2D_BASE_URL: ${H2D_BASE_URL:-}
       TI_LEADER_EMAIL: ${TI_LEADER_EMAIL:-}
       MAIL_FROM: ${MAIL_FROM:-h2d@localhost}

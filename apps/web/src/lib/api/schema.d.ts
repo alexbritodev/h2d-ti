@@ -201,6 +201,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/hooks/n8n/sla-check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sla Check
+         * @description Chamado pelo vigia de SLA do n8n (a cada poucos minutos). Cada alerta nasce uma vez só.
+         */
+        post: operations["n8nSlaCheck"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/kb/chunks/{chunk_id}": {
         parameters: {
             query?: never;
@@ -1450,6 +1470,40 @@ export interface operations {
                 content: {
                     "application/json": {
                         [key: string]: boolean;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    n8nSlaCheck: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-h2d-timestamp"?: string | null;
+                "x-h2d-signature"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
                     };
                 };
             };

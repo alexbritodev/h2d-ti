@@ -1,0 +1,127 @@
+{
+  "name": "H2D 05 - Erro global",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "b5000000-0000-4000-8000-000000000001",
+      "name": "Erro em algum workflow",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Avisa o líder da TI quando qualquer workflow do H2D falha.\nconst e = $json;\nconst wf = e.workflow || {};\nconst ex = e.execution || {};\nconst leader = $env.TI_LEADER_EMAIL || '';\nconst text = `O workflow \"${wf.name}\" falhou.\nNó: ${ex.lastNodeExecuted || 'desconhecido'}\nErro: ${(ex.error && ex.error.message) || 'sem mensagem'}\nExecução: ${ex.url || ex.id || 'n/d'}\nHorário: ${new Date().toISOString()}`;\nreturn [{ json: { send: Boolean(leader), to: leader, subject: `[H2D] Falha no n8n: ${wf.name}`, text } }];"
+      },
+      "id": "b5000000-0000-4000-8000-000000000002",
+      "name": "Montar aviso de erro",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c5",
+              "leftValue": "={{ $json.send }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b5000000-0000-4000-8000-000000000003",
+      "name": "Tem destinatário?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.MAIL_FROM || 'h2d@localhost' }}",
+        "toEmail": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailFormat": "text",
+        "text": "={{ $json.text }}",
+        "options": {}
+      },
+      "id": "b5000000-0000-4000-8000-000000000004",
+      "name": "Enviar e-mail",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        720,
+        -60
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "h2d-smtp",
+          "name": "SMTP H2D"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Erro em algum workflow": {
+      "main": [
+        [
+          {
+            "node": "Montar aviso de erro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar aviso de erro": {
+      "main": [
+        [
+          {
+            "node": "Tem destinatário?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tem destinatário?": {
+      "main": [
+        [
+          {
+            "node": "Enviar e-mail",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "id": "h2d-erro-global"
+}

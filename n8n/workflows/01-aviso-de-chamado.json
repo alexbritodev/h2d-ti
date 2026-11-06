@@ -6,13 +6,18 @@
         "httpMethod": "POST",
         "path": "h2d-events",
         "responseMode": "responseNode",
-        "options": { "rawBody": true }
+        "options": {
+          "rawBody": true
+        }
       },
       "id": "a1000000-0000-4000-8000-000000000001",
       "name": "Evento do H2D",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [0, 0],
+      "position": [
+        0,
+        0
+      ],
       "webhookId": "h2d-events"
     },
     {
@@ -23,19 +28,30 @@
       "name": "Verificar assinatura",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [240, 0]
+      "position": [
+        240,
+        0
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "version": 2, "leftValue": "", "caseSensitive": true, "typeValidation": "loose" },
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
           "combinator": "and",
           "conditions": [
             {
               "id": "c0",
               "leftValue": "={{ $json.valid }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "equals" }
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
             }
           ]
         },
@@ -45,19 +61,30 @@
       "name": "Assinatura válida?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [480, 0]
+      "position": [
+        480,
+        0
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "version": 2, "leftValue": "", "caseSensitive": true, "typeValidation": "loose" },
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
           "combinator": "and",
           "conditions": [
             {
               "id": "c1",
               "leftValue": "={{ $json.duplicate }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "equals" }
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
             }
           ]
         },
@@ -67,29 +94,43 @@
       "name": "É duplicado?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [720, -100]
+      "position": [
+        720,
+        -100
+      ]
     },
     {
       "parameters": {
-        "jsCode": "// Decide para quem e o que enviar, conforme o tipo do evento.\nconst e = $json.event;\nconst p = e.payload || {};\nconst leader = $env.TI_LEADER_EMAIL || '';\nconst base = ($env.H2D_BASE_URL || '').replace(/\\/$/, '');\nconst link = base ? `\\n\\nAbrir no sistema: ${base}/chamados` : '';\nlet to = '';\nlet cc = '';\nlet subject = '';\nlet text = '';\nif (e.type === 'ticket.created') {\n  to = (p.assignee && p.assignee.email) || leader;\n  if (p.notify_leader && leader && leader !== to) cc = leader;\n  subject = `[H2D] Novo chamado ${p.code}${p.priority ? ' (' + p.priority + ')' : ''}: ${p.summary}`;\n  text = `Novo chamado ${p.code}\\nPrioridade: ${p.priority || 'não definida'}\\nSolicitante: ${p.requester && p.requester.name}\\nResponsável: ${p.assignee ? p.assignee.name : 'ninguém ainda (triagem manual)'}\\nPrazo de resolução: ${p.resolution_due || 'não definido'}\\n\\n${p.summary}${link}`;\n} else if (e.type === 'ticket.assigned') {\n  to = (p.assignee && p.assignee.email) || '';\n  subject = `[H2D] Chamado ${p.code} atribuído a você`;\n  text = `O chamado ${p.code} foi atribuído a você.\\nPrioridade: ${p.priority || 'não definida'}\\nSolicitante: ${p.requester && p.requester.name}\\n\\n${p.summary}${link}`;\n} else if (e.type === 'ticket.resolved') {\n  to = (p.requester && p.requester.email) || '';\n  subject = `[H2D] Seu chamado ${p.code} foi resolvido`;\n  text = `Olá! O chamado ${p.code} (${p.summary}) foi resolvido pela equipe de TI.\\nSe o problema voltar, responda no próprio chamado.`;\n}\nreturn [{ json: { event_id: e.event_id, type: e.type, send: Boolean(to), to, cc, subject, text } }];"
+        "jsCode": "// Decide para quem e o que enviar, conforme o tipo do evento.\nconst e = $json.event;\nconst p = e.payload || {};\nconst leader = $env.TI_LEADER_EMAIL || '';\nconst base = ($env.H2D_BASE_URL || '').replace(/\\/$/, '');\nconst link = base ? `\\n\\nAbrir no sistema: ${base}/chamados` : '';\nlet to = '';\nlet cc = '';\nlet subject = '';\nlet text = '';\nif (e.type === 'ticket.created') {\n  to = (p.assignee && p.assignee.email) || leader;\n  if (p.notify_leader && leader && leader !== to) cc = leader;\n  subject = `[H2D] Novo chamado ${p.code}${p.priority ? ' (' + p.priority + ')' : ''}: ${p.summary}`;\n  text = `Novo chamado ${p.code}\\nPrioridade: ${p.priority || 'não definida'}\\nSolicitante: ${p.requester && p.requester.name}\\nResponsável: ${p.assignee ? p.assignee.name : 'ninguém ainda (triagem manual)'}\\nPrazo de resolução: ${p.resolution_due || 'não definido'}\\n\\n${p.summary}${link}`;\n} else if (e.type === 'ticket.assigned') {\n  to = (p.assignee && p.assignee.email) || '';\n  subject = `[H2D] Chamado ${p.code} atribuído a você`;\n  text = `O chamado ${p.code} foi atribuído a você.\\nPrioridade: ${p.priority || 'não definida'}\\nSolicitante: ${p.requester && p.requester.name}\\n\\n${p.summary}${link}`;\n} else if (e.type === 'ticket.resolved') {\n  to = (p.requester && p.requester.email) || '';\n  subject = `[H2D] Seu chamado ${p.code} foi resolvido`;\n  text = `Olá! O chamado ${p.code} (${p.summary}) foi resolvido pela equipe de TI.\\nSe o problema voltar, responda no próprio chamado.`;\n} else if (e.type === 'ticket.sla_alert') {\n  const estouro = p.level === 100;\n  to = (p.assignee && p.assignee.email) || leader;\n  if (estouro && leader && leader !== to) cc = leader;\n  subject = estouro ? `[H2D] SLA ESTOURADO: ${p.code} (${p.summary})` : `[H2D] SLA em risco (75% do prazo): ${p.code}`;\n  text = `${estouro ? 'O prazo de resolução ESTOUROU' : 'O prazo de resolução passou de 75%'} no chamado ${p.code}.\nPrioridade: ${p.priority || 'não definida'}\nResponsável: ${p.assignee ? p.assignee.name : 'ninguém ainda'}\nPrazo: ${p.resolution_due || 'não definido'}\n\n${p.summary}${link}`;\n}\nreturn [{ json: { event_id: e.event_id, type: e.type, send: Boolean(to), to, cc, subject, text } }];"
       },
       "id": "a1000000-0000-4000-8000-000000000004",
       "name": "Montar aviso",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [960, 20]
+      "position": [
+        960,
+        20
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "version": 2, "leftValue": "", "caseSensitive": true, "typeValidation": "loose" },
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
           "combinator": "and",
           "conditions": [
             {
               "id": "c2",
               "leftValue": "={{ $json.send }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "equals" }
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
             }
           ]
         },
@@ -99,26 +140,36 @@
       "name": "Tem destinatário?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1200, 20]
+      "position": [
+        1200,
+        20
+      ]
     },
     {
       "parameters": {
         "fromEmail": "={{ $env.MAIL_FROM || 'h2d@localhost' }}",
         "toEmail": "={{ $json.to }}",
-        "ccEmail": "={{ $json.cc }}",
         "subject": "={{ $json.subject }}",
         "emailFormat": "text",
         "text": "={{ $json.text }}",
-        "options": {}
+        "options": {
+          "ccEmail": "={{ $json.cc }}"
+        }
       },
       "id": "a1000000-0000-4000-8000-000000000006",
       "name": "Enviar e-mail",
       "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
-      "position": [1440, -40],
+      "position": [
+        1440,
+        -40
+      ],
       "onError": "continueErrorOutput",
       "credentials": {
-        "smtp": { "id": "h2d-smtp", "name": "SMTP H2D" }
+        "smtp": {
+          "id": "h2d-smtp",
+          "name": "SMTP H2D"
+        }
       }
     },
     {
@@ -129,76 +180,185 @@
       "name": "Registrar como processado",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1680, 40]
+      "position": [
+        1680,
+        40
+      ]
     },
     {
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ { ok: true } }}",
-        "options": { "responseCode": 200 }
+        "options": {
+          "responseCode": 200
+        }
       },
       "id": "a1000000-0000-4000-8000-000000000008",
       "name": "Responder 200",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [1920, -60]
+      "position": [
+        1920,
+        -60
+      ]
     },
     {
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ { ok: false, error: $json.reason || 'assinatura inválida' } }}",
-        "options": { "responseCode": 401 }
+        "options": {
+          "responseCode": 401
+        }
       },
       "id": "a1000000-0000-4000-8000-00000000000a",
       "name": "Responder 401",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [720, 140]
+      "position": [
+        720,
+        140
+      ]
     },
     {
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ { ok: false, error: 'falha ao enviar o e-mail' } }}",
-        "options": { "responseCode": 500 }
+        "options": {
+          "responseCode": 500
+        }
       },
       "id": "a1000000-0000-4000-8000-00000000000b",
       "name": "Responder 500",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [1680, 220]
+      "position": [
+        1680,
+        220
+      ]
     }
   ],
   "connections": {
-    "Evento do H2D": { "main": [[{ "node": "Verificar assinatura", "type": "main", "index": 0 }]] },
-    "Verificar assinatura": { "main": [[{ "node": "Assinatura válida?", "type": "main", "index": 0 }]] },
+    "Evento do H2D": {
+      "main": [
+        [
+          {
+            "node": "Verificar assinatura",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar assinatura": {
+      "main": [
+        [
+          {
+            "node": "Assinatura válida?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Assinatura válida?": {
       "main": [
-        [{ "node": "É duplicado?", "type": "main", "index": 0 }],
-        [{ "node": "Responder 401", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "É duplicado?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder 401",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "É duplicado?": {
       "main": [
-        [{ "node": "Responder 200", "type": "main", "index": 0 }],
-        [{ "node": "Montar aviso", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Responder 200",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Montar aviso",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
-    "Montar aviso": { "main": [[{ "node": "Tem destinatário?", "type": "main", "index": 0 }]] },
+    "Montar aviso": {
+      "main": [
+        [
+          {
+            "node": "Tem destinatário?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Tem destinatário?": {
       "main": [
-        [{ "node": "Enviar e-mail", "type": "main", "index": 0 }],
-        [{ "node": "Registrar como processado", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Enviar e-mail",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Registrar como processado",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Enviar e-mail": {
       "main": [
-        [{ "node": "Registrar como processado", "type": "main", "index": 0 }],
-        [{ "node": "Responder 500", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Registrar como processado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder 500",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
-    "Registrar como processado": { "main": [[{ "node": "Responder 200", "type": "main", "index": 0 }]] }
+    "Registrar como processado": {
+      "main": [
+        [
+          {
+            "node": "Responder 200",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "h2d-erro-global"
+  },
   "active": false,
   "id": "h2d-aviso-chamado"
 }

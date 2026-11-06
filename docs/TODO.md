@@ -164,20 +164,20 @@ Progresso
 
 ## F5. Automações
 
-- [ ] `B` Criar o workflow 5 (erro global)
-- [ ] `TL` Criar o endpoint assinado de chamados em risco
-- [ ] `B` Criar o workflow 2 (vigia de SLA)
+- [x] `B` Criar o workflow 5 (erro global): avisa o líder com o workflow, o nó e o erro (testado com falha forçada)
+- [x] `TL` Criar o endpoint assinado de chamados em risco (`POST /api/hooks/n8n/sla-check`: cria os alertas de 75% e 100% e os enfileira no outbox)
+- [x] `B` Criar o workflow 2 (vigia de SLA): a cada 5 minutos, assinado com HMAC
 - [ ] ~~`TL` Criar o endpoint de avaliação CSAT~~
 - [ ] ~~`A` Criar a tela de avaliação do chamado~~
 - [ ] ~~`B` Criar o workflow 4 (pesquisa de satisfação)~~
 - [ ] ~~`B` Criar o workflow 3 (relatório semanal)~~
-- [ ] `B` Configurar a poda do histórico de execuções
+- [x] `B` Configurar a poda do histórico de execuções (só erros, 7 dias)
 - [ ] `TL` Guardar a `N8N_ENCRYPTION_KEY` fora da VPS (instrução no runbook; falta você guardar a cópia)
 
 **Critérios de saída**
-- [ ] Alertas de 75% e 100% disparam uma única vez cada
-- [ ] Chamada sem assinatura válida recebe 401
-- [ ] Workflow com falha forçada avisa o canal de TI
+- [x] Alertas de 75% e 100% disparam uma única vez cada (testado: no código, e no n8n real, com 2 ciclos do agendamento e 1 e-mail por nível)
+- [x] Chamada sem assinatura válida recebe 401 (API e webhook do n8n)
+- [x] Workflow com falha forçada avisa o canal de TI (API derrubada: o líder recebeu o aviso)
 
 ## F6. Dashboard
 

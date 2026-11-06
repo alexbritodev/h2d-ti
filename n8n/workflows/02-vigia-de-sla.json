@@ -1,0 +1,98 @@
+{
+  "name": "H2D 02 - Vigia de SLA",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "b2000000-0000-4000-8000-000000000001",
+      "name": "A cada 5 minutos",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Assina o pedido com o mesmo HMAC das outras rotas: horário + corpo (vazio).\nconst crypto = require('crypto');\nconst secret = $env.H2D_HMAC_SECRET;\nif (!secret) throw new Error('H2D_HMAC_SECRET não configurado');\nif (!$env.H2D_API_URL) throw new Error('H2D_API_URL não configurado');\nconst ts = String(Math.floor(Date.now() / 1000));\nconst sig = 'sha256=' + crypto.createHmac('sha256', secret).update(`${ts}.`).digest('hex');\nreturn [{ json: { ts, sig, url: `${$env.H2D_API_URL}/api/hooks/n8n/sla-check` } }];"
+      },
+      "id": "b2000000-0000-4000-8000-000000000002",
+      "name": "Assinar pedido",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-H2D-Timestamp",
+              "value": "={{ $json.ts }}"
+            },
+            {
+              "name": "X-H2D-Signature",
+              "value": "={{ $json.sig }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "b2000000-0000-4000-8000-000000000003",
+      "name": "Verificar SLA na API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "A cada 5 minutos": {
+      "main": [
+        [
+          {
+            "node": "Assinar pedido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assinar pedido": {
+      "main": [
+        [
+          {
+            "node": "Verificar SLA na API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "h2d-erro-global"
+  },
+  "active": false,
+  "id": "h2d-vigia-sla"
+}

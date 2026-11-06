@@ -46,20 +46,35 @@ O n8n sobe no stack, com banco próprio (`n8n`) e **sem endereço público** (de
 **Configuração única, depois do primeiro deploy:**
 
 1. Abra o editor do n8n e crie o dono (quem abrir primeiro vira dono). Guarde `N8N_ENCRYPTION_KEY` fora da VPS.
-2. No console do container `h2d-n8n`, importe o workflow (a imagem já leva os arquivos) e publique:
+2. No console do container `h2d-n8n`, importe os workflows (a imagem já leva os arquivos) e publique os três, **o de erro primeiro**:
 
 ```bash
 n8n import:workflow --separate --input=/home/node/h2d-workflows
 ```
 
 ```bash
+n8n publish:workflow --id=h2d-erro-global
+```
+
+```bash
 n8n publish:workflow --id=h2d-aviso-chamado
 ```
 
+```bash
+n8n publish:workflow --id=h2d-vigia-sla
+```
+
 3. Reinicie o container `h2d-n8n`.
-4. No editor, crie a credencial **SMTP** com o nome exato `SMTP H2D` (servidor, porta, usuário e senha do e-mail que enviará os avisos) e abra o workflow "H2D 01 - Aviso de chamado" para conferir que o nó "Enviar e-mail" a usa.
+4. No editor, crie a credencial **SMTP** com o nome exato `SMTP H2D` (servidor, porta, usuário e senha do e-mail que enviará os avisos) e abra os workflows "H2D 01 - Aviso de chamado" e "H2D 05 - Erro global" para conferir que o nó "Enviar e-mail" a usa.
 
 **Como conferir:** abra um chamado pelo assistente. O evento aparece em `outbox_events` como `delivered` e o aviso chega ao técnico responsável (ou ao líder, se for triagem manual).
+
+**Workflows:**
+- **01 Aviso de chamado:** recebe os eventos da API (chamado criado, atribuído, resolvido e alerta de SLA) e envia o e-mail.
+- **02 Vigia de SLA:** a cada 5 minutos chama `/api/hooks/n8n/sla-check`. A API cria o alerta de **75%** e o de **100%** do prazo, **uma única vez cada**, e o aviso sai pelo workflow 01 (o de 100% copia o líder). O alerta vai pela fila de eventos, então e-mail que falha não perde nem repete o aviso.
+- **05 Erro global:** qualquer workflow que falhar avisa o `TI_LEADER_EMAIL` com o nome, o nó e o erro.
+
+**Poda:** o n8n guarda só as execuções com erro, por 7 dias (`EXECUTIONS_DATA_*` no compose).
 
 **Comportamento:**
 - Assinatura inválida: o n8n responde 401 e o evento continua pendente (nunca é dado como entregue).

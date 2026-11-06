@@ -99,6 +99,10 @@ services:
       NODE_FUNCTION_ALLOW_BUILTIN: crypto
       H2D_HMAC_SECRET: ${N8N_HMAC_SECRET:-hmac-de-desenvolvimento-local}
       H2D_BASE_URL: http://localhost:5173
+      H2D_API_URL: http://api:8000
+      EXECUTIONS_DATA_PRUNE: "true"
+      EXECUTIONS_DATA_MAX_AGE: "168"
+      EXECUTIONS_DATA_SAVE_ON_SUCCESS: none
       TI_LEADER_EMAIL: lider@h2d.local
       MAIL_FROM: h2d@h2d.local
       GENERIC_TIMEZONE: America/Sao_Paulo

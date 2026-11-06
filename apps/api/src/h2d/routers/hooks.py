@@ -9,7 +9,9 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 
 from h2d.config import get_settings
+from h2d.deps import SessionDep
 from h2d.outbox import verify
+from h2d.tickets.sla_watch import emit_sla_alerts
 
 
 async def verified_n8n(
@@ -35,3 +37,11 @@ router = APIRouter(prefix="/hooks/n8n", tags=["hooks"], dependencies=[Depends(ve
 @router.post("/ping", operation_id="n8nPing")
 async def ping() -> dict[str, bool]:
     return {"ok": True}
+
+
+@router.post("/sla-check", operation_id="n8nSlaCheck")
+async def sla_check(session: SessionDep) -> dict[str, object]:
+    """Chamado pelo vigia de SLA do n8n (a cada poucos minutos). Cada alerta nasce uma vez só."""
+    alerts = await emit_sla_alerts(session)
+    await session.commit()
+    return {"alerts": alerts}

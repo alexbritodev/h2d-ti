@@ -11,8 +11,9 @@ Central de atendimento de TI em que um assistente com IA resolve o que os manuai
 | F1 Fundação | No ar na VPS (stack do Portainer, HTTPS). Faltam fechar os critérios de saída (#13) |
 | F2 Ingestão | Pronta: envio de manuais, fila com worker, embeddings locais, busca híbrida com permissão e telas de Documentos e Base de conhecimento. Só lê Markdown e texto (PDF e DOCX dependem do Docling) |
 | F3 Chat | Pronta: assistente com fontes citadas, mascaramento de dados sensíveis, limites e o modelo do OpenRouter |
-| F4 Chamados | Pronta, menos o n8n: classificação, prioridade, SLA, roteador, triagem manual e telas (Meus chamados, fila e detalhe). Falta o envio dos avisos |
-| F5 a F7 | Não começaram (automações, dashboard, backup e demo) |
+| F4 Chamados | Pronta: classificação, prioridade, SLA, roteador, triagem manual, telas e avisos por e-mail via n8n (falta só configurar o SMTP na VPS) |
+| F5 Automações | Pronta: vigia de SLA (alertas de 75% e 100%, uma vez cada), workflow de erro global e poda do histórico do n8n |
+| F6 e F7 | Não começaram (dashboard, backup e demo) |
 
 O detalhe item por item está no [TODO](docs/TODO.md).
 
