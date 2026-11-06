@@ -29,6 +29,7 @@ Revisão de 05/11/2026 do modelo da seção 6 do plano. Mostra o que já existe,
 | F2 | `kb_documents`, `kb_document_versions`, `kb_chunks`, `ingestion_jobs` | Ver "Pontos de atenção" 1 a 4 |
 | F3 | `conversations`, `messages`, `llm_calls`, `prompt_versions` | `messages` guarda só o texto já mascarado. `prompt_versions` é nova (D5) |
 | F4 | `tickets`, `ticket_events`, `outbox_events`, `app_settings` | `app_settings` é nova (D5) e guarda limiares e regras de roteamento |
+| Convites (migração 0005) | `user_invites` | Só o hash SHA-256 do token é guardado. Link de uso único (`used_at`) com validade (`expires_at`, 48 h por padrão); um novo link apaga os anteriores ainda abertos. O token também vai no `outbox_events` até o e-mail ser entregue, e então é apagado |
 | F7 | `kb_drafts` | Nova (D5); só se o ciclo de aprendizado não for cortado |
 
 ## Pontos de atenção

@@ -1,6 +1,16 @@
 # Runbook: VPS e deploy
 
-**Estado em 05/11/2026:** o H2D roda na VPS Hostinger (KVM 2, Ubuntu 24.04), num stack do Portainer que compila direto do Git. Está em `https://h2d.187-127-0-175.sslip.io` (domínio temporário; troque pelo definitivo quando existir).
+**Estado em 06/11/2026:** o H2D roda na VPS Hostinger (KVM 2, Ubuntu 24.04), num stack do Portainer que compila direto do Git. O endereço é **`https://h2d-ti.tech`**. O endereço temporário `https://h2d.187-127-0-175.sslip.io` segue no Caddy como reserva e pode ser removido quando não for mais preciso.
+
+## Domínio
+
+| Peça | Configuração |
+| --- | --- |
+| DNS (painel da Hostinger) | `@` tipo A para `187.127.0.175` (TTL 300) e `www` tipo CNAME para `h2d-ti.tech` |
+| Caddy da VPS (`/opt/proxy/caddy/Caddyfile`) | Bloco `h2d-ti.tech` com `reverse_proxy h2d-web:8080` e `/api/hooks/*` bloqueado no acesso público; `www.h2d-ti.tech` redireciona (301) para `https://h2d-ti.tech`. O HTTPS é emitido sozinho |
+| Portainer (variável do stack) | `H2D_BASE_URL=https://h2d-ti.tech`, usado no link dos e-mails. O domínio em si **não** é cadastrado no Portainer |
+
+Depois de mexer no Caddyfile, valide e recarregue (`caddy validate`, `caddy reload`), sem reiniciar o container: os outros projetos usam o mesmo Caddy. Para conferir de fora: `curl -sI https://h2d-ti.tech/api/ready` deve dar 200, e `/api/hooks/n8n/ping` deve dar 403.
 
 ## Como é o desenho
 
@@ -14,7 +24,7 @@
 
 1. Portainer → Stacks → Add stack → **Repository**.
 2. URL `https://github.com/danubiolagoa/h2d-ti`, referência `refs/heads/main`, caminho `docker-compose.yml`. O repositório é privado: ative *Authentication* com um token do GitHub **só de leitura** (fine-grained, Contents: Read-only).
-3. Variáveis: `POSTGRES_PASSWORD`, `H2D_DB_PASSWORD`, `N8N_DB_PASSWORD`, `JWT_SECRET`, `N8N_ENCRYPTION_KEY`, `N8N_DOMAIN`. Gere cada segredo com `python -c "import secrets; print(secrets.token_urlsafe(48))"`.
+3. Variáveis: `POSTGRES_PASSWORD`, `H2D_DB_PASSWORD`, `N8N_DB_PASSWORD`, `JWT_SECRET`, `N8N_ENCRYPTION_KEY`, `N8N_DOMAIN`, e `H2D_BASE_URL` (`https://h2d-ti.tech`). Gere cada segredo com `python -c "import secrets; print(secrets.token_urlsafe(48))"`.
 4. **Deploy the stack.** O primeiro build leva alguns minutos.
 5. Crie o administrador, no console do `h2d-api` (senha de 6+ caracteres, com letras e números):
 
@@ -22,7 +32,8 @@
 ADMIN_EMAIL=voce@empresa.com ADMIN_NAME="Seu Nome" ADMIN_PASSWORD='sua-senha' python -m h2d.create_admin
 ```
 
-6. Os demais usuários são criados no painel: **Administração → Cadastros → Novo: usuário**.
+6. Os demais usuários entram por convite: **Administração → Cadastros → Usuários → Convidar usuário** (veja "Convite de usuário por e-mail" abaixo). O catálogo de técnicos, categorias e SLA vem de "Catálogo e técnicos em produção".
+7. Envie os manuais em **Administração → Documentos** (`.md`, `.txt`, `.pdf` ou `.docx`). Reenviar um arquivo com o mesmo título e conteúdo diferente cria uma nova versão; a anterior só sai quando a nova estiver pronta.
 
 ## Atualizar
 
@@ -103,7 +114,7 @@ Cada e-mail precisa ser de um usuário que já existe, com papel técnico ou adm
 ## Checklist dos critérios de saída da F1
 
 - [x] Site e `/api/ready` respondem 200 em HTTPS
-- [ ] Login do administrador funciona em `https://<domínio>`
+- [x] Login do administrador funciona em `https://h2d-ti.tech`
 - [ ] Banco inacessível de fora: varredura de portas (`nmap -Pn 187.127.0.175`) sem a 5432
 - [ ] Merge na `main` chega à VPS com `/api/ready` verde (hoje com *Pull and redeploy* manual)
 
@@ -119,4 +130,8 @@ Cada e-mail precisa ser de um usuário que já existe, com papel técnico ou adm
 
 ## Ainda não existe
 
-Backup (F7), worker (F2), monitoramento (cortado até 18/11).
+Backup externo e restauração testada (F7), CSP/HSTS e limite de requisições (F7), monitoramento (cortado até 18/11).
+
+## Dashboard
+
+`GET /api/metrics/overview?days=` alimenta a tela *Dashboard* (técnico e administrador leem; usuário comum recebe 403). Os dias são de calendário em `America/Sao_Paulo`. As definições de defleção, custo por conversa, volume e SLA cumprido estão no topo de `apps/api/src/h2d/metrics.py`, e `apps/api/tests/test_metrics.py` confere cada número com SQL escrito à mão. Com modelos gratuitos do OpenRouter o custo por conversa é zero, e isso é esperado.

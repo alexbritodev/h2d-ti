@@ -25,6 +25,8 @@ x-api-env: &api-env
   # Integração com o n8n (rede interna). Sem o segredo, os eventos ficam na fila e nada é enviado.
   N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://h2d-n8n:5678/webhook/h2d-events}
   N8N_HMAC_SECRET: ${N8N_HMAC_SECRET:-}
+  # Validade do link de convite, em horas (mínimo 24).
+  INVITE_TTL_HOURS: ${INVITE_TTL_HOURS:-48}
   # Opcional: token do Hugging Face (gratuito) eleva o limite de download do modelo (erro 429).
   HF_TOKEN: ${HF_TOKEN:-}
 

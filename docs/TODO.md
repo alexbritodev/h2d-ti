@@ -10,19 +10,20 @@ Detalhes e critérios de saída: [PLANO-IMPLEMENTACAO.md](PLANO-IMPLEMENTACAO.md
 
 ```
 Progresso
-⬤ [in_progress] F0 Decisões (04/11 a 05/11)
-⬤ [in_progress] F1 Fundação (05/11 a 07/11)
-⬤ [pending] F2 Ingestão (06/11 a 09/11)
-⬤ [pending] F3 Chat RAG (08/11 a 11/11)
-⬤ [pending] F4 Triagem e chamados (10/11 a 14/11, marco: fluxo mínimo)
-⬤ [pending] F5 Automações (14/11 a 15/11)
-⬤ [pending] F6 Dashboard (14/11 a 16/11)
+⬤ [in_progress] F0 Decisões (04/11 a 05/11): faltam as decisões do time (#6, #7, #8, #11)
+⬤ [in_progress] F1 Fundação (05/11 a 07/11): no ar em https://h2d-ti.tech; faltam critérios de saída (#13)
+⬤ [completed] F2 Ingestão (06/11 a 09/11)
+⬤ [completed] F3 Chat RAG (08/11 a 11/11)
+⬤ [completed] F4 Triagem e chamados (10/11 a 14/11, marco: fluxo mínimo)
+⬤ [completed] F5 Automações (14/11 a 15/11)
+⬤ [completed] F6 Dashboard (14/11 a 16/11)
 ⬤ [pending] F7 Endurecimento e demo (15/11 a 17/11)
+⬤ [pending] F8 Pendências da F0 a F6, para Darles e Hanover (até 18/11)
 ```
 
 ## F0. Decisões
 
-**Estado em 05/11/2026: 3 de 9 itens concluídos. O que falta depende de você ou do time e está nas issues indicadas.**
+**Estado em 06/11/2026: 4 de 9 itens concluídos. O que falta depende de você ou do time e está nas issues indicadas.**
 
 - [x] `TL` Descobrir a data de entrega do curso: 18/11/2026
 - [x] `TL` Resolver as divergências D1 a D11 do plano ([ADR-002](adr/0002-divergencias-do-plano.md))
@@ -30,14 +31,14 @@ Progresso
 - [ ] `TL` Dar acesso ao repositório a Darles e Hanover (#6)
 - [ ] `TL` Confirmar Python no backend com os colegas; o [ADR-001](adr/0001-python-no-backend.md) segue como proposta (#7)
 - [ ] `TL` Decidir o plano do GitHub: no plano atual a proteção da `main` e a aprovação do ambiente não funcionam (#8)
-- [x] `TL` Contratar a VPS (KVM 2, Hostinger). Domínio temporário em uso: `h2d.187-127-0-175.sslip.io`
-- [ ] `TL` Registrar o domínio definitivo (#9)
+- [x] `TL` Contratar a VPS (KVM 2, Hostinger). O endereço temporário `h2d.187-127-0-175.sslip.io` segue funcionando como reserva
+- [x] `TL` Registrar o domínio definitivo (#9): `h2d-ti.tech` registrado em 06/11/2026, DNS (A de `@` para a VPS, `www` redireciona) e HTTPS no Caddy da VPS verificados
 - [ ] `TL` Criar a conta no OpenRouter com limite de gasto (#10)
 - [ ] `TL` Combinar a divisão de tarefas conforme o que cada um domina (#11)
 
 ## F1. Fundação
 
-**Estado em 05/11/2026: o sistema está no ar na VPS (stack do Portainer, HTTPS no domínio temporário). Faltam a proteção da `main`, o Projects e fechar os critérios de saída na VPS (#13).**
+**Estado em 06/11/2026: o sistema está no ar na VPS (stack do Portainer, HTTPS em `https://h2d-ti.tech`). Faltam a proteção da `main`, o Projects e fechar os critérios de saída na VPS (#13).**
 
 **Repositório e ambiente**
 - [x] `TL` Rodar `git init` e criar o repositório no GitHub
@@ -83,7 +84,7 @@ Progresso
 - [ ] `TL` Fechar os critérios de saída da F1 na VPS: login do administrador, varredura de portas de fora e atualização por merge (#13)
 
 **Critérios de saída**
-- [ ] Login do seed funciona em HTTPS na VPS (local em HTTP: testado no navegador) (#13)
+- [x] Login funciona em HTTPS na VPS (administrador criado com `create_admin`; entrada confirmada em 06/11/2026) (#13)
 - [ ] Mudança de contrato não commitada quebra o CI (o job passa com o contrato em dia; a detecção foi provada só localmente)
 - [ ] Merge na `main` chega à VPS com `/api/ready` verde (#13)
 - [ ] Banco inacessível de fora da VPS (o Compose de produção não publica a porta; falta testar com varredura de fora) (#13)
@@ -225,6 +226,43 @@ Progresso
 - [ ] Backup restaurado, com tempo registrado
 - [ ] Critérios de sucesso do MVP todos marcados
 - [ ] Demo ensaiada sem intervenção manual
+
+## F8. Pendências para a equipe (Darles e Hanover)
+
+Itens que ficaram para trás nas fases F0 a F6, reunidos aqui para **Darles e Hanover** assumirem. Quem faz o quê está em aberto (#11): como sugestão, **A** (front e testes de tela) e **B** (dados, avaliação e automação), conforme o que cada um domina. Marque `[x]` ao concluir e comente na issue indicada. Prazo de tudo: antes da demo, 18/11/2026.
+
+**1. Acesso e decisões (primeiro, destravam o resto)**
+- [ ] Aceitar o acesso ao repositório e rodar o projeto local (README, "Como rodar") (#6)
+- [ ] Combinar a divisão de tarefas entre os dois (#11)
+- [ ] Confirmar Python no backend, ou apontar objeção ([ADR-001](adr/0001-python-no-backend.md)) (#7)
+- [ ] Decidir o plano do GitHub: sem ele, a proteção da `main` e o secret scanning não funcionam (#8). Enquanto isso, a regra é nada de push direto na `main`: tudo por PR
+
+**2. Avaliação do assistente (`B`)**
+- [ ] Escrever as 30 perguntas do conjunto de avaliação de RAG v0 (hoje há 22, escritas só pelo `TL`) e registrar o acerto top-k
+- [ ] Rotular as 18 conversas que faltam em `eval/classificacao_v0.jsonl` (de 30) e, de preferência, um segundo conjunto escrito por outra pessoa
+- [ ] Escrever casos de prompt injection nos manuais de teste (instrução maliciosa dentro de um manual não pode mudar o comportamento)
+- [ ] Definir as metas de acerto com base nas medições
+- [ ] Rodar a avaliação no CI (10 casos por PR, conjunto completo à noite)
+- [ ] Revisar o conteúdo dos 15 manuais e completar os que estiverem rasos (a base é só o que está escrito neles: o assistente responde "não encontrei" para o resto). Os manuais ficam em `manuais/`, fora do Git
+- [ ] Conferir e marcar os critérios de saída da F3: citação abre o trecho certo; pergunta fora da base recebe "não encontrei"; senha colada não aparece em log, banco nem chamada ao LLM
+
+**3. Chamados (`A`)**
+- [ ] Fazer a demo completa na VPS com usuário e técnico em navegadores separados (critério de saída da F4)
+- [ ] Testar na VPS: LLM fora do ar (o chat oferece abrir chamado direto) e usuário só vê os próprios chamados
+- [ ] Atalho `j`/`k` na fila de chamados
+- [ ] Decidir se entram, ou ficam para depois da entrega: `get_my_tickets` no agente e as perguntas de esclarecimento antes de abrir o chamado
+
+**4. Operação e segurança da VPS (`TL`, com revisão da equipe)**
+- [ ] Fechar os critérios de saída da F1 na VPS: varredura de portas de fora sem a 5432 (`nmap -Pn 187.127.0.175`) e merge na `main` chegando à VPS com `/api/ready` verde (hoje o redeploy é manual) (#13)
+- [ ] Atualizar o Portainer (está na 2.39, em HTTP na porta 9001) e fechar as portas abertas de outros serviços da VPS
+- [ ] Guardar uma cópia da `N8N_ENCRYPTION_KEY` fora da VPS (sem ela as credenciais do n8n não abrem)
+- [ ] Medir memória da API e do worker na VPS com `docker stats` e decidir sobre a KVM 4
+- [ ] Provar que uma mudança de contrato não commitada quebra o CI
+- [ ] Criar o GitHub Projects (precisa de um token com o escopo `project`) (#14)
+
+**5. Qualidade geral**
+- [ ] Testar o convite de usuário na VPS: convidar, receber o e-mail em `https://h2d-ti.tech/definir-senha`, definir a senha e entrar
+- [ ] Testar o dashboard com dados reais da demo e conferir cada número com SQL
 
 ## Backlog pós-MVP
 

@@ -8,13 +8,16 @@ Central de atendimento de TI em que um assistente com IA resolve o que os manuai
 
 | Fase | Situação |
 | --- | --- |
-| F1 Fundação | No ar na VPS (stack do Portainer, HTTPS). Faltam fechar os critérios de saída (#13) |
+| F1 Fundação | No ar em **<https://h2d-ti.tech>** (VPS, stack do Portainer, HTTPS no Caddy). Faltam fechar os critérios de saída (#13) |
 | F2 Ingestão | Pronta: envio de manuais, fila com worker, embeddings locais, busca híbrida com permissão e telas de Documentos e Base de conhecimento. Lê Markdown, texto, PDF e DOCX (PDF digitalizado, só imagem, não: não há OCR) |
 | F3 Chat | Pronta: assistente com fontes citadas, mascaramento de dados sensíveis, limites e o modelo do OpenRouter |
-| F4 Chamados | Pronta: classificação, prioridade, SLA, roteador, triagem manual, telas e avisos por e-mail via n8n (falta só configurar o SMTP na VPS) |
+| F4 Chamados | Pronta: classificação, prioridade, SLA, roteador, triagem manual, telas e avisos por e-mail via n8n (SMTP configurado na VPS) |
 | F5 Automações | Pronta: vigia de SLA (alertas de 75% e 100%, uma vez cada), workflow de erro global e poda do histórico do n8n |
 | F6 Dashboard | Pronta: defleção do assistente, custo por conversa, volume e SLA cumprido, com números reais conferidos por SQL |
-| F7 | Não começou (backup, teste de ponta a ponta e demo) |
+| F7 Endurecimento e demo | Não começou: backup com restauração testada, CSP/HSTS e limite de requisições, teste e2e, avaliação do RAG e ensaio da demo |
+| F8 Pendências | **Darles e Hanover:** itens que ficaram para trás nas fases F0 a F6 (decisões, avaliação do assistente, testes na VPS e segurança). Lista completa na seção F8 do [TODO](docs/TODO.md) |
+
+Também pronto, fora das fases: **convite de usuário por e-mail** (link de uso único para a pessoa definir a própria senha) e **domínio definitivo**.
 
 O detalhe item por item está no [TODO](docs/TODO.md).
 
@@ -26,6 +29,8 @@ O detalhe item por item está no [TODO](docs/TODO.md).
 - **Dados sensíveis:** senha, CPF, cartão e token são escondidos antes de qualquer gravação, log ou envio ao modelo.
 - **Chamados:** a conversa vira chamado com categoria, impacto e urgência sugeridos pelo modelo. A **prioridade sai de uma matriz em código**, o prazo de SLA é calculado em código e o técnico é escolhido por regras (habilidade, horário, capacidade e menor carga). Sem confiança ou sem técnico elegível, vai para a **triagem manual**. O motivo de cada atribuição fica na linha do tempo.
 - **Papéis:** usuário (vê os próprios chamados), técnico (atende os que lhe cabem) e administrador (cadastros, ingestão, reatribuição).
+- **Convite de usuário:** o administrador informa nome, e-mail e papel; a pessoa recebe um e-mail (no tema do app) com um link para definir a própria senha. O link vale 48 horas (configurável, mínimo 24), só funciona uma vez e pode ser reenviado (o anterior deixa de valer). A conta nasce sem senha utilizável, e no banco fica só o hash do token.
+- **Dashboard:** defleção do assistente, custo por conversa, volume por dia e SLA cumprido, em números reais do banco (técnico e administrador). Cada número tem definição fixa e teste contra SQL escrito à mão.
 
 ## Documentos
 
@@ -150,11 +155,11 @@ uvx pre-commit install
 | `infra` | Caddyfile do container web, scripts do banco e o desenho antigo de deploy por SSH (sem uso) |
 | `docs` | Plano, ADRs, modelo de dados, runbook e TODO |
 | `manuais` | Manuais fictícios para testar a base. **Não vai para o Git**: ficam só na máquina |
-| `n8n` | Workflows exportados (entram com a F4/F5) |
+| `n8n` | Workflows exportados (aviso de chamado e convite, vigia de SLA, erro global) e a imagem que os leva |
 
 ## Deploy
 
-O sistema roda na VPS como um stack do Portainer que compila direto deste repositório (`docker-compose.yml`), atrás do Caddy da VPS. As variáveis e segredos ficam só no Portainer. O passo a passo, as armadilhas já encontradas e a atualização estão no [runbook](docs/RUNBOOK-VPS.md).
+O sistema roda em <https://h2d-ti.tech>, na VPS, como um stack do Portainer que compila direto deste repositório (`docker-compose.yml`), atrás do Caddy da VPS (que emite o HTTPS; o DNS aponta `@` para a VPS). As variáveis e segredos ficam só no Portainer. O passo a passo, as armadilhas já encontradas e a atualização estão no [runbook](docs/RUNBOOK-VPS.md).
 
 ## Como contribuir
 
