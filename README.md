@@ -78,7 +78,7 @@ Só é preciso ter o Docker e o Git.
 
 Se uma porta estiver ocupada, troque-a no `.env`. O ambiente local tem o banco `h2d` e o banco `h2d_test`, exclusivo dos testes.
 
-**Dois arquivos de compose.** `compose.yaml` é o ambiente de desenvolvimento (é o que `docker compose` usa) e `docker-compose.yml` é o stack de produção do Portainer. O Compose avisa que encontrou os dois; é esperado.
+**Dois arquivos de compose.** `compose.dev.yaml` é o ambiente de desenvolvimento e `docker-compose.yml` é o stack de produção do Portainer. O `.env.example` traz a linha `COMPOSE_FILE=compose.dev.yaml`, que faz o `docker compose` local usar o de desenvolvimento sem você digitar `-f`. Sem essa linha (por exemplo, num servidor), o Compose usa o de produção.
 
 ## Comandos do dia a dia
 

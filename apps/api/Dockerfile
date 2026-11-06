@@ -28,7 +28,10 @@ WORKDIR /app
 COPY --from=builder /opt/venv /opt/venv
 COPY migrations ./migrations
 COPY alembic.ini ./
-RUN useradd --system --no-create-home h2d     && mkdir -p /data/uploads /models     && chown -R h2d /data /models
+# Com pasta pessoal: sem ela, o download do modelo falhava com "Permission denied" em ~/.cache.
+RUN useradd --system --create-home --home-dir /home/h2d h2d     && mkdir -p /data/uploads /models     && chown -R h2d /data /models
+# O cache do Hugging Face fica junto do modelo (e do volume), não na pasta pessoal.
+ENV HF_HOME=/models/.huggingface
 USER h2d
 # O modelo de embeddings (ADR-003) tenta vir baixado na imagem: a primeira busca não espera. O
 # Hugging Face limita pedidos sem login (erro 429) e isso já derrubou um deploy; por isso são

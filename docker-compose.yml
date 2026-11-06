@@ -2,7 +2,8 @@
 # O Portainer faz o build a partir do Git. Os valores das variáveis ${...} ficam em
 # "Environment variables" do stack, nunca no repositório (modelo em .env.example).
 # O Caddy da VPS recebe o domínio, gera o HTTPS e encaminha para h2d-web:8080 pela rede "proxy".
-# O desenvolvimento local usa compose.yaml, não este arquivo.
+# O desenvolvimento local usa compose.dev.yaml (o .env define COMPOSE_FILE), não este arquivo.
+# Este é o único compose com nome padrão: um `docker compose` solto na VPS usa ESTE, nunca o de dev.
 name: h2d
 
 x-restart: &restart
