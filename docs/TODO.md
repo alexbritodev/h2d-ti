@@ -182,18 +182,18 @@ Progresso
 
 ## F6. Dashboard
 
-- [ ] `TL` Criar os endpoints de métricas: defleção, custo, volume e SLA
-- [ ] `A` Criar `KpiTile`
-- [ ] `A` Exibir taxa de defleção e custo por conversa **(obrigatórios)**
-- [ ] `A` Exibir volume e SLA cumprido
+- [x] `TL` Criar os endpoints de métricas: defleção, custo, volume e SLA (`GET /api/metrics/overview?days=`; definições no topo de `apps/api/src/h2d/metrics.py`)
+- [x] `A` Criar `KpiTile`
+- [x] `A` Exibir taxa de defleção e custo por conversa **(obrigatórios)**
+- [x] `A` Exibir volume e SLA cumprido
 - [ ] ~~`A` Criar `Sparkline`~~
 - [ ] ~~`A` Exibir backlog, MTTR, 1ª resposta humana, acerto da classificação e CSAT~~
 - [ ] ~~`A` Criar a tela "Minha carga" e exibir lacunas da base e custo por chamado~~
-- [ ] `B` Conferir cada KPI com uma consulta SQL escrita à mão
+- [x] `B` Conferir cada KPI com uma consulta SQL escrita à mão (`apps/api/tests/test_metrics.py` e conferência manual no banco de desenvolvimento)
 
 **Critérios de saída**
-- [ ] Todos os KPIs exibidos conferem com o SQL manual
-- [ ] Técnico lê o dashboard, mas não altera nada
+- [x] Todos os KPIs exibidos conferem com o SQL manual
+- [x] Técnico lê o dashboard, mas não altera nada (teste de papel: técnico 200, usuário 403, escrita 405)
 
 ## F7. Endurecimento e piloto
 

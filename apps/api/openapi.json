@@ -59,6 +59,46 @@
         "title": "Body_uploadDocument",
         "type": "object"
       },
+      "BotMetrics": {
+        "properties": {
+          "conversations": {
+            "title": "Conversations",
+            "type": "integer"
+          },
+          "deflected": {
+            "title": "Deflected",
+            "type": "integer"
+          },
+          "deflection_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deflection Rate"
+          },
+          "escalated_without_ticket": {
+            "title": "Escalated Without Ticket",
+            "type": "integer"
+          },
+          "with_ticket": {
+            "title": "With Ticket",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "conversations",
+          "deflected",
+          "with_ticket",
+          "escalated_without_ticket",
+          "deflection_rate"
+        ],
+        "title": "BotMetrics",
+        "type": "object"
+      },
       "Citation": {
         "properties": {
           "breadcrumb": {
@@ -214,6 +254,59 @@
         ],
         "title": "ConversationStatus",
         "type": "string"
+      },
+      "CostMetrics": {
+        "properties": {
+          "llm_calls": {
+            "title": "Llm Calls",
+            "type": "integer"
+          },
+          "per_conversation_usd": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Per Conversation Usd"
+          },
+          "total_usd": {
+            "title": "Total Usd",
+            "type": "string"
+          }
+        },
+        "required": [
+          "llm_calls",
+          "total_usd",
+          "per_conversation_usd"
+        ],
+        "title": "CostMetrics",
+        "type": "object"
+      },
+      "DayVolume": {
+        "properties": {
+          "conversations": {
+            "title": "Conversations",
+            "type": "integer"
+          },
+          "day": {
+            "title": "Day",
+            "type": "string"
+          },
+          "tickets": {
+            "title": "Tickets",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day",
+          "conversations",
+          "tickets"
+        ],
+        "title": "DayVolume",
+        "type": "object"
       },
       "DocumentOut": {
         "properties": {
@@ -831,6 +924,41 @@
         "title": "MessageOut",
         "type": "object"
       },
+      "Overview": {
+        "properties": {
+          "bot": {
+            "$ref": "#/components/schemas/BotMetrics"
+          },
+          "cost": {
+            "$ref": "#/components/schemas/CostMetrics"
+          },
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "since": {
+            "format": "date-time",
+            "title": "Since",
+            "type": "string"
+          },
+          "sla": {
+            "$ref": "#/components/schemas/SlaMetrics"
+          },
+          "volume": {
+            "$ref": "#/components/schemas/VolumeMetrics"
+          }
+        },
+        "required": [
+          "days",
+          "since",
+          "bot",
+          "cost",
+          "volume",
+          "sla"
+        ],
+        "title": "Overview",
+        "type": "object"
+      },
       "PasswordReset": {
         "properties": {
           "password": {
@@ -909,6 +1037,46 @@
           "content"
         ],
         "title": "SendMessage",
+        "type": "object"
+      },
+      "SlaMetrics": {
+        "properties": {
+          "breached": {
+            "title": "Breached",
+            "type": "integer"
+          },
+          "met": {
+            "title": "Met",
+            "type": "integer"
+          },
+          "met_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Met Rate"
+          },
+          "open_overdue": {
+            "title": "Open Overdue",
+            "type": "integer"
+          },
+          "resolved_with_due": {
+            "title": "Resolved With Due",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "resolved_with_due",
+          "met",
+          "breached",
+          "met_rate",
+          "open_overdue"
+        ],
+        "title": "SlaMetrics",
         "type": "object"
       },
       "SlaOut": {
@@ -1708,6 +1876,32 @@
         ],
         "title": "Visibility",
         "type": "string"
+      },
+      "VolumeMetrics": {
+        "properties": {
+          "by_day": {
+            "items": {
+              "$ref": "#/components/schemas/DayVolume"
+            },
+            "title": "By Day",
+            "type": "array"
+          },
+          "conversations": {
+            "title": "Conversations",
+            "type": "integer"
+          },
+          "tickets": {
+            "title": "Tickets",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "conversations",
+          "tickets",
+          "by_day"
+        ],
+        "title": "VolumeMetrics",
+        "type": "object"
       }
     }
   },
@@ -3038,6 +3232,67 @@
         "summary": "Search",
         "tags": [
           "kb"
+        ]
+      }
+    },
+    "/api/metrics/overview": {
+      "get": {
+        "operationId": "getMetricsOverview",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 90,
+              "minimum": 1,
+              "title": "Days",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "h2d_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "H2D Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Overview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Overview",
+        "tags": [
+          "metrics"
         ]
       }
     },

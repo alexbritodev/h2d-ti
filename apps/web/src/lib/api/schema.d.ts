@@ -388,6 +388,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/metrics/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Overview */
+        get: operations["getMetricsOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/ready": {
         parameters: {
             query?: never;
@@ -605,6 +622,19 @@ export interface components {
             title?: string | null;
             visibility?: components["schemas"]["Visibility"] | null;
         };
+        /** BotMetrics */
+        BotMetrics: {
+            /** Conversations */
+            conversations: number;
+            /** Deflected */
+            deflected: number;
+            /** Deflection Rate */
+            deflection_rate: number | null;
+            /** Escalated Without Ticket */
+            escalated_without_ticket: number;
+            /** With Ticket */
+            with_ticket: number;
+        };
         /** Citation */
         Citation: {
             /** Breadcrumb */
@@ -677,6 +707,24 @@ export interface components {
          * @enum {string}
          */
         ConversationStatus: "open" | "resolved" | "escalated";
+        /** CostMetrics */
+        CostMetrics: {
+            /** Llm Calls */
+            llm_calls: number;
+            /** Per Conversation Usd */
+            per_conversation_usd: string | null;
+            /** Total Usd */
+            total_usd: string;
+        };
+        /** DayVolume */
+        DayVolume: {
+            /** Conversations */
+            conversations: number;
+            /** Day */
+            day: string;
+            /** Tickets */
+            tickets: number;
+        };
         /** DocumentOut */
         DocumentOut: {
             /** Category */
@@ -889,6 +937,20 @@ export interface components {
             /** Role */
             role: string;
         };
+        /** Overview */
+        Overview: {
+            bot: components["schemas"]["BotMetrics"];
+            cost: components["schemas"]["CostMetrics"];
+            /** Days */
+            days: number;
+            /**
+             * Since
+             * Format: date-time
+             */
+            since: string;
+            sla: components["schemas"]["SlaMetrics"];
+            volume: components["schemas"]["VolumeMetrics"];
+        };
         /** PasswordReset */
         PasswordReset: {
             /** Password */
@@ -920,6 +982,19 @@ export interface components {
         SendMessage: {
             /** Content */
             content: string;
+        };
+        /** SlaMetrics */
+        SlaMetrics: {
+            /** Breached */
+            breached: number;
+            /** Met */
+            met: number;
+            /** Met Rate */
+            met_rate: number | null;
+            /** Open Overdue */
+            open_overdue: number;
+            /** Resolved With Due */
+            resolved_with_due: number;
         };
         /** SlaOut */
         SlaOut: {
@@ -1201,6 +1276,15 @@ export interface components {
          * @enum {string}
          */
         Visibility: "public" | "it";
+        /** VolumeMetrics */
+        VolumeMetrics: {
+            /** By Day */
+            by_day: components["schemas"]["DayVolume"][];
+            /** Conversations */
+            conversations: number;
+            /** Tickets */
+            tickets: number;
+        };
     };
     responses: never;
     parameters: never;
@@ -1968,6 +2052,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HitOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getMetricsOverview: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: {
+                h2d_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Overview"];
                 };
             };
             /** @description Validation Error */

@@ -13,7 +13,8 @@ Central de atendimento de TI em que um assistente com IA resolve o que os manuai
 | F3 Chat | Pronta: assistente com fontes citadas, mascaramento de dados sensíveis, limites e o modelo do OpenRouter |
 | F4 Chamados | Pronta: classificação, prioridade, SLA, roteador, triagem manual, telas e avisos por e-mail via n8n (falta só configurar o SMTP na VPS) |
 | F5 Automações | Pronta: vigia de SLA (alertas de 75% e 100%, uma vez cada), workflow de erro global e poda do histórico do n8n |
-| F6 e F7 | Não começaram (dashboard, backup e demo) |
+| F6 Dashboard | Pronta: defleção do assistente, custo por conversa, volume e SLA cumprido, com números reais conferidos por SQL |
+| F7 | Não começou (backup, teste de ponta a ponta e demo) |
 
 O detalhe item por item está no [TODO](docs/TODO.md).
 
