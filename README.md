@@ -1,15 +1,36 @@
 # H2D - TI
 
-Central de atendimento de TI em que um chatbot com RAG resolve o que os manuais já respondem e só abre chamado, já classificado e atribuído a um técnico, quando a resolução automática falha.
+Central de atendimento de TI em que um assistente com IA resolve o que os manuais já respondem e só abre chamado, já classificado e atribuído a um técnico, quando a resolução automática falha.
 
-**Entrega: 18/11/2026.** Estado atual: fase F1, com login e ambiente local funcionando.
+**Entrega: 18/11/2026.**
+
+## Estado atual
+
+| Fase | Situação |
+| --- | --- |
+| F1 Fundação | No ar na VPS (stack do Portainer, HTTPS). Faltam fechar os critérios de saída (#13) |
+| F2 Ingestão | Pronta: envio de manuais, fila com worker, embeddings locais, busca híbrida com permissão e telas de Documentos e Base de conhecimento. Só lê Markdown e texto (PDF e DOCX dependem do Docling) |
+| F3 Chat | Pronta: assistente com fontes citadas, mascaramento de dados sensíveis, limites e o modelo do OpenRouter |
+| F4 Chamados | Pronta, menos o n8n: classificação, prioridade, SLA, roteador, triagem manual e telas (Meus chamados, fila e detalhe). Falta o envio dos avisos |
+| F5 a F7 | Não começaram (automações, dashboard, backup e demo) |
+
+O detalhe item por item está no [TODO](docs/TODO.md).
+
+## O que o sistema faz
+
+- **Base de conhecimento:** o administrador envia manuais (`.md` ou `.txt`) em *Administração → Documentos*. Um worker divide o texto por títulos, gera os vetores e publica a versão de uma vez só. Arquivo repetido não é reprocessado, e a versão anterior só sai depois da nova estar pronta.
+- **Permissão:** cada documento é público ou restrito à TI. Usuário comum nunca recebe trecho restrito, nem na busca, nem no chat, nem na biblioteca (o filtro roda dentro do SQL e tem teste automatizado).
+- **Assistente:** responde só com base nos trechos encontrados, cita a fonte de cada afirmação e confere se a resposta é sustentada por eles. Se não sabe, diz que não encontrou e oferece abrir um chamado.
+- **Dados sensíveis:** senha, CPF, cartão e token são escondidos antes de qualquer gravação, log ou envio ao modelo.
+- **Chamados:** a conversa vira chamado com categoria, impacto e urgência sugeridos pelo modelo. A **prioridade sai de uma matriz em código**, o prazo de SLA é calculado em código e o técnico é escolhido por regras (habilidade, horário, capacidade e menor carga). Sem confiança ou sem técnico elegível, vai para a **triagem manual**. O motivo de cada atribuição fica na linha do tempo.
+- **Papéis:** usuário (vê os próprios chamados), técnico (atende os que lhe cabem) e administrador (cadastros, ingestão, reatribuição).
 
 ## Documentos
 
 - [Plano do projeto](docs/H2D-TI-plano.md): visão, arquitetura, stack e regras de negócio
 - [Plano de implementação](docs/PLANO-IMPLEMENTACAO.md): fases, calendário, cortes e riscos
 - [Todo list](docs/TODO.md): tarefas por fase e critérios de saída
-- [Decisões de arquitetura](docs/adr/)
+- [Decisões de arquitetura](docs/adr/): Python no backend, divergências do plano e embeddings
 - [Modelo de dados](docs/MODELO-DADOS.md)
 - [Runbook da VPS e do deploy](docs/RUNBOOK-VPS.md)
 
@@ -22,6 +43,8 @@ Só é preciso ter o Docker e o Git.
    ```bash
    cp .env.example .env
    ```
+
+   Para usar o assistente de verdade, acrescente no `.env` a linha `OPENROUTER_API_KEY=` com a sua chave (o arquivo é ignorado pelo Git). Sem a chave o sistema sobe normalmente, mas o assistente responde que está indisponível.
 
 2. Suba o ambiente. Na primeira vez leva alguns minutos:
 
@@ -43,13 +66,18 @@ Só é preciso ter o Docker e o Git.
    | Técnico | `tecnico1@h2d.local` a `tecnico3@h2d.local` |
    | Usuário | `usuario1@h2d.local` a `usuario3@h2d.local` |
 
+5. Para testar o assistente, entre como admin, abra *Administração → Documentos* e envie manuais em Markdown. A primeira busca baixa o modelo de embeddings (cerca de 220 MB) e demora um pouco.
+
 | Serviço | Endereço | Observação |
 | --- | --- | --- |
 | Frontend | <http://localhost:5173> | Recarrega sozinho ao editar |
 | API | <http://localhost:8010/api/docs> | Muda com `API_PORT` |
 | Banco | `localhost:5433` | Muda com `DB_PORT` |
+| Worker | sem porta | Processa a fila de ingestão |
 
 Se uma porta estiver ocupada, troque-a no `.env`. O ambiente local tem o banco `h2d` e o banco `h2d_test`, exclusivo dos testes.
+
+**Dois arquivos de compose.** `compose.yaml` é o ambiente de desenvolvimento (é o que `docker compose` usa) e `docker-compose.yml` é o stack de produção do Portainer. O Compose avisa que encontrou os dois; é esperado.
 
 ## Comandos do dia a dia
 
@@ -87,7 +115,7 @@ docker compose exec web npm run typecheck
 docker compose exec web npm test
 ```
 
-**Criar uma migração** depois de alterar `models.py`. Revise o arquivo gerado antes de commitar:
+**Criar uma migração** depois de alterar `models.py`. Revise o arquivo gerado (principalmente tipos enum) e confira com `alembic check`:
 
 ```bash
 docker compose exec api alembic revision --autogenerate -m "descricao"
@@ -103,14 +131,31 @@ docker compose exec api python -m h2d.export_openapi openapi.json
 docker compose exec web npm run gen:api
 ```
 
+Se você adicionar uma dependência ao front, reinicie o container para instalar: `docker compose restart web`.
+
 **Ativar os hooks de commit** (gitleaks e ruff). Exige o [uv](https://docs.astral.sh/uv/):
 
 ```bash
 uvx pre-commit install
 ```
 
+## Estrutura
+
+| Pasta | Conteúdo |
+| --- | --- |
+| `apps/api` | FastAPI, SQLAlchemy, Alembic. `kb/` é a ingestão e a busca, `chat/` o assistente, `tickets/` as regras de chamado, `llm/` o cliente do modelo |
+| `apps/web` | React, Vite, TanStack Router e Query, Tailwind. Uma pasta por área em `src/features/` |
+| `infra` | Caddyfile do container web, scripts do banco e o desenho antigo de deploy por SSH (sem uso) |
+| `docs` | Plano, ADRs, modelo de dados, runbook e TODO |
+| `manuais` | Manuais fictícios para testar a base. **Não vai para o Git**: ficam só na máquina |
+| `n8n` | Workflows exportados (entram com a F4/F5) |
+
+## Deploy
+
+O sistema roda na VPS como um stack do Portainer que compila direto deste repositório (`docker-compose.yml`), atrás do Caddy da VPS. As variáveis e segredos ficam só no Portainer. O passo a passo, as armadilhas já encontradas e a atualização estão no [runbook](docs/RUNBOOK-VPS.md).
+
 ## Como contribuir
 
 Até a proteção da `main` estar definida, vale a convenção: nada de push direto na `main`, sempre por PR. As regras completas estão na seção 10 do plano do projeto.
 
-Nunca commite `.env`, chaves ou dumps de banco.
+Nunca commite `.env`, chaves, dumps de banco ou os manuais de teste.
