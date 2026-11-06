@@ -560,6 +560,21 @@ class OutboxEvent(Base):
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class UserInvite(Base):
+    """Link de primeiro acesso (ou de nova senha). Só o hash do token fica guardado."""
+
+    __tablename__ = "user_invites"
+
+    id: Mapped[uuid.UUID] = _id_column()
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = _created_at()
+
+
 class AppSetting(Base):
     """Ajustes que o admin muda sem deploy: limiares e regras de roteamento."""
 

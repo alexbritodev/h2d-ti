@@ -11,6 +11,7 @@ import type { ReactNode } from "react";
 
 import { AppShell } from "@/components/AppShell";
 import { LoginPage } from "@/features/auth/LoginPage";
+import { SetPasswordPage } from "@/features/auth/SetPasswordPage";
 import { AuditPage } from "@/features/admin/AuditPage";
 import { DocumentsPage } from "@/features/admin/DocumentsPage";
 import { RegistersPage } from "@/features/admin/RegistersPage";
@@ -58,6 +59,16 @@ const loginRoute = createRoute({
   component: LoginPage,
 });
 
+// Pública: quem chega pelo link do e-mail ainda não tem senha nem sessão.
+const setPasswordRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/definir-senha",
+  validateSearch: (search: Record<string, unknown>) => ({
+    token: typeof search.token === "string" ? search.token : undefined,
+  }),
+  component: SetPasswordPage,
+});
+
 const appRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: "app",
@@ -96,6 +107,7 @@ const screenRoutes = NAV_ITEMS.map((item) =>
 
 const routeTree = rootRoute.addChildren([
   loginRoute,
+  setPasswordRoute,
   appRoute.addChildren([indexRoute, ...screenRoutes]),
 ]);
 

@@ -4,6 +4,27 @@
  */
 
 export interface paths {
+    "/api/auth/invite/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Invite */
+        get: operations["getInvite"];
+        put?: never;
+        /**
+         * Accept Invite
+         * @description Define a senha pelo link e já entra no sistema. O link só funciona uma vez.
+         */
+        post: operations["acceptInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/login": {
         parameters: {
             query?: never;
@@ -494,6 +515,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/users/invite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Invite User
+         * @description Cria a conta sem senha utilizável e envia o link para a pessoa definir a dela.
+         */
+        post: operations["inviteUser"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/users/{user_id}": {
         parameters: {
             query?: never;
@@ -509,6 +550,26 @@ export interface paths {
         head?: never;
         /** Update User */
         patch: operations["updateUser"];
+        trace?: never;
+    };
+    "/api/users/{user_id}/invite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resend Invite
+         * @description Novo link para quem ainda não entrou ou esqueceu a senha. Os links anteriores caem.
+         */
+        post: operations["resendUserInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/users/{user_id}/password": {
@@ -732,6 +793,18 @@ export interface components {
             document_title: string;
             /** Score */
             score: number;
+        };
+        /** InviteAccept */
+        InviteAccept: {
+            /** Password */
+            password: string;
+        };
+        /** InviteInfo */
+        InviteInfo: {
+            /** Email */
+            email: string;
+            /** Name */
+            name: string;
         };
         /** JobOut */
         JobOut: {
@@ -1025,6 +1098,11 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /**
+             * Invite Pending
+             * @default false
+             */
+            invite_pending: boolean;
             /** Is Active */
             is_active: boolean;
             /** Is Vip */
@@ -1048,6 +1126,25 @@ export interface components {
             name: string;
             /** Password */
             password: string;
+            /** @default user */
+            role: components["schemas"]["Role"];
+        };
+        /**
+         * UserInviteCreate
+         * @description Convite: a pessoa define a própria senha pelo link enviado ao e-mail.
+         */
+        UserInviteCreate: {
+            /** Department */
+            department?: string | null;
+            /** Email */
+            email: string;
+            /**
+             * Is Vip
+             * @default false
+             */
+            is_vip: boolean;
+            /** Name */
+            name: string;
             /** @default user */
             role: components["schemas"]["Role"];
         };
@@ -1113,6 +1210,72 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteInfo"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    acceptInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InviteAccept"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     login: {
         parameters: {
             query?: never;
@@ -2120,6 +2283,41 @@ export interface operations {
             };
         };
     };
+    inviteUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                h2d_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserInviteCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserAdminOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     updateUser: {
         parameters: {
             query?: never;
@@ -2145,6 +2343,37 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["UserAdminOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resendUserInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: {
+                h2d_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

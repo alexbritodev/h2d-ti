@@ -84,6 +84,12 @@ n8n publish:workflow --id=h2d-vigia-sla
 
 **Testar no seu PC:** `docker compose --profile n8n up -d` sobe o n8n (porta 5679) e o Mailpit (<http://localhost:8025>), que recebe os e-mails em vez de enviá-los. Importe a credencial e o workflow como acima.
 
+## Convite de usuário por e-mail
+
+Em *Administração → Cadastros → Usuários → Convidar usuário*, o administrador informa nome, e-mail e papel. A conta nasce sem senha utilizável e o n8n envia um e-mail (tema do app) com o link `/definir-senha?token=...`. O link vale por 48 horas (`INVITE_TTL_HOURS`, mínimo 24), só funciona uma vez, e *Enviar novo link* na edição do usuário invalida o anterior (serve também para quem esqueceu a senha).
+
+Para funcionar na VPS: `H2D_BASE_URL` (variável do stack, endereço público do sistema) precisa estar definido, o SMTP do n8n configurado e o workflow `01-aviso-de-chamado` reimportado e publicado depois do redeploy (comandos da seção acima). Sem `H2D_BASE_URL` o n8n recusa o evento e o outbox tenta de novo, em vez de perder o convite. O token é apagado do evento assim que o e-mail é entregue.
+
 ## Catálogo e técnicos em produção
 
 Os chamados só são atribuídos automaticamente se existirem categorias, habilidades, prazos de SLA e técnicos. O seed de demonstração cria tudo isso, mas também cria usuários de mentira; em produção use o script abaixo, no console do container `h2d-api`. Ele só cria o que falta:

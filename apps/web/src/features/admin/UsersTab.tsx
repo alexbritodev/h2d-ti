@@ -13,7 +13,8 @@ import { meQuery } from "@/lib/auth";
 
 import {
   type AdminUser,
-  createUser,
+  inviteUser,
+  resendInvite,
   resetPassword,
   ROLE_LABELS,
   updateUser,
@@ -82,7 +83,16 @@ export function UsersTab({
       sortValue: (user) => user.department ?? "",
       render: (user) => user.department ?? "—",
     },
-    { key: "active", header: "Situação", render: (user) => <Status active={user.is_active} /> },
+    {
+      key: "active",
+      header: "Situação",
+      render: (user) =>
+        user.is_active && user.invite_pending ? (
+          <Badge tone="warn">Convite pendente</Badge>
+        ) : (
+          <Status active={user.is_active} />
+        ),
+    },
     {
       key: "edit",
       header: "",
@@ -168,17 +178,16 @@ function CreateModal({
     const form = new FormData(event.currentTarget);
     setBusy(true);
     setError(null);
-    const result = await createUser({
+    const result = await inviteUser({
       name: String(form.get("name") ?? ""),
       email: String(form.get("email") ?? ""),
-      password: String(form.get("password") ?? ""),
       role: String(form.get("role")) as Role,
       department: String(form.get("department") ?? "") || null,
       is_vip: vip,
     });
     setBusy(false);
     if (!result.ok) return setError(result.message);
-    toast("Usuário criado", result.data.email);
+    toast("Convite enviado", `${result.data.email} recebe o link para definir a senha.`);
     setVip(false);
     onDone();
   }
@@ -190,12 +199,12 @@ function CreateModal({
         if (!next) setError(null);
         onOpenChange(next);
       }}
-      title="Novo usuário"
+      title="Convidar usuário"
       footer={
         <>
           <Button onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button variant="primary" type="submit" form="new-user" disabled={busy}>
-            {busy ? "Salvando…" : "Criar usuário"}
+            {busy ? "Enviando…" : "Enviar convite"}
           </Button>
         </>
       }
@@ -207,16 +216,9 @@ function CreateModal({
         <Field label="E-mail" htmlFor="new-user-email">
           <Input id="new-user-email" name="email" type="email" required autoComplete="off" />
         </Field>
-        <Field label="Senha inicial" htmlFor="new-user-password" hint={PASSWORD_HINT}>
-          <Input
-            id="new-user-password"
-            name="password"
-            type="text"
-            required
-            minLength={6}
-            autoComplete="off"
-          />
-        </Field>
+        <p className="rounded-lg bg-surface-2 p-3 text-sm text-muted">
+          A pessoa recebe um e-mail com um link para definir a própria senha. O link vale por 48 horas.
+        </p>
         <Field label="Papel" htmlFor="new-user-role">
           <Select id="new-user-role" name="role" defaultValue="user">
             <RoleOptions />
@@ -273,6 +275,17 @@ function EditModal({
     setBusy(false);
     if (!result.ok) return setError(result.message);
     toast("Usuário atualizado", user.email);
+    onDone();
+  }
+
+  async function sendLink() {
+    if (!user) return;
+    setBusy(true);
+    setError(null);
+    const result = await resendInvite(user.id);
+    setBusy(false);
+    if (!result.ok) return setError(result.message);
+    toast("Link enviado", `${user.email} recebe um novo link (o anterior deixa de valer).`);
     onDone();
   }
 
@@ -341,6 +354,17 @@ function EditModal({
               />
             </div>
           </form>
+
+          <div className="space-y-2 border-t border-border pt-4">
+            <p className="font-medium">Link de acesso por e-mail</p>
+            <p className="text-xs text-muted">
+              Para quem ainda não entrou ou esqueceu a senha. O link vale por 48 horas e só funciona
+              uma vez.
+            </p>
+            <Button onClick={sendLink} disabled={busy || !user.is_active}>
+              Enviar novo link
+            </Button>
+          </div>
 
           <form onSubmit={reset} className="space-y-3 border-t border-border pt-4">
             <Field label="Redefinir senha" htmlFor="edit-user-password" hint={PASSWORD_HINT}>

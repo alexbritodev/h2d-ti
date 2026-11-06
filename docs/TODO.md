@@ -56,6 +56,7 @@ Progresso
 - [x] `B` Criar o seed de usuários, técnicos, habilidades, categorias e SLAs (prazos de SLA provisórios)
 - [x] `TL` Criar `h2d.create_admin` para o primeiro administrador em produção, e exigir `ALLOW_DEMO_SEED` para rodar o seed lá
 - [x] `TL` Criar a API de usuários (`/api/users`: listar, criar, editar, desativar e redefinir senha; só admin; grava em `audit_log`). Senha com 6+ caracteres, letras e números
+- [x] `TL` Convite por e-mail: link de uso único (48 h) para a pessoa definir a própria senha, e-mail no tema do app via n8n, reenvio de link (migração 0005)
 
 **Frontend**
 - [x] `A` Criar o projeto Vite com TanStack Router e Query e Tailwind

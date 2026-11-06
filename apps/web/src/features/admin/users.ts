@@ -41,6 +41,24 @@ export async function createUser(body: UserCreate): Promise<Outcome<AdminUser>> 
   return data ? { ok: true, data } : { ok: false, message: errorMessage(error, "Não foi possível criar o usuário.") };
 }
 
+export type UserInviteCreate = components["schemas"]["UserInviteCreate"];
+
+/** Cria a conta sem senha e manda ao e-mail o link para a pessoa definir a dela. */
+export async function inviteUser(body: UserInviteCreate): Promise<Outcome<AdminUser>> {
+  const { data, error } = await api.POST("/api/users/invite", { body });
+  return data ? { ok: true, data } : { ok: false, message: errorMessage(error, "Não foi possível enviar o convite.") };
+}
+
+/** Novo link (os anteriores deixam de valer): serve para quem não entrou ou esqueceu a senha. */
+export async function resendInvite(id: string): Promise<Outcome<null>> {
+  const { response, error } = await api.POST("/api/users/{user_id}/invite", {
+    params: { path: { user_id: id } },
+  });
+  return response.ok
+    ? { ok: true, data: null }
+    : { ok: false, message: errorMessage(error, "Não foi possível enviar o link.") };
+}
+
 export async function updateUser(id: string, body: UserUpdate): Promise<Outcome<AdminUser>> {
   const { data, error } = await api.PATCH("/api/users/{user_id}", {
     params: { path: { user_id: id } },

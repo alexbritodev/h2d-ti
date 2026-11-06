@@ -576,6 +576,38 @@
         "title": "HitOut",
         "type": "object"
       },
+      "InviteAccept": {
+        "properties": {
+          "password": {
+            "maxLength": 1024,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "password"
+        ],
+        "title": "InviteAccept",
+        "type": "object"
+      },
+      "InviteInfo": {
+        "properties": {
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "email"
+        ],
+        "title": "InviteInfo",
+        "type": "object"
+      },
       "JobOut": {
         "properties": {
           "attempts": {
@@ -1388,6 +1420,11 @@
             "title": "Id",
             "type": "string"
           },
+          "invite_pending": {
+            "default": false,
+            "title": "Invite Pending",
+            "type": "boolean"
+          },
           "is_active": {
             "title": "Is Active",
             "type": "boolean"
@@ -1464,6 +1501,50 @@
           "email"
         ],
         "title": "UserCreate",
+        "type": "object"
+      },
+      "UserInviteCreate": {
+        "description": "Convite: a pessoa define a própria senha pelo link enviado ao e-mail.",
+        "properties": {
+          "department": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Department"
+          },
+          "email": {
+            "maxLength": 320,
+            "minLength": 3,
+            "title": "Email",
+            "type": "string"
+          },
+          "is_vip": {
+            "default": false,
+            "title": "Is Vip",
+            "type": "boolean"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role",
+            "default": "user"
+          }
+        },
+        "required": [
+          "name",
+          "email"
+        ],
+        "title": "UserInviteCreate",
         "type": "object"
       },
       "UserOut": {
@@ -1636,6 +1717,99 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/auth/invite/{token}": {
+      "get": {
+        "operationId": "getInvite",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InviteInfo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Invite",
+        "tags": [
+          "auth"
+        ]
+      },
+      "post": {
+        "description": "Define a senha pelo link e já entra no sistema. O link só funciona uma vez.",
+        "operationId": "acceptInvite",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteAccept"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Accept Invite",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/api/auth/login": {
       "post": {
         "operationId": "login",
@@ -3481,6 +3655,66 @@
         ]
       }
     },
+    "/api/users/invite": {
+      "post": {
+        "description": "Cria a conta sem senha utilizável e envia o link para a pessoa definir a dela.",
+        "operationId": "inviteUser",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "h2d_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "H2D Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserInviteCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserAdminOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Invite User",
+        "tags": [
+          "users"
+        ]
+      }
+    },
     "/api/users/{user_id}": {
       "patch": {
         "operationId": "updateUser",
@@ -3545,6 +3779,59 @@
           }
         },
         "summary": "Update User",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/users/{user_id}/invite": {
+      "post": {
+        "description": "Novo link para quem ainda não entrou ou esqueceu a senha. Os links anteriores caem.",
+        "operationId": "resendUserInvite",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "h2d_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "H2D Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resend Invite",
         "tags": [
           "users"
         ]

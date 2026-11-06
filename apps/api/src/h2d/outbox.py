@@ -99,6 +99,9 @@ async def deliver_pending(
             event.status = OutboxStatus.DELIVERED
             event.delivered_at = now
             event.last_error = None
+            if "token" in event.payload:
+                # O link já foi enviado: o segredo não precisa ficar guardado no banco.
+                event.payload = {**event.payload, "token": None}
         else:
             event.last_error = error
             if event.attempts >= MAX_ATTEMPTS:

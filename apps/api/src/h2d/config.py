@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     n8n_webhook_url: str = ""
     # Segredo compartilhado do HMAC, nos dois sentidos (API para n8n e n8n para API).
     n8n_hmac_secret: SecretStr | None = None
+    # Validade do link de convite (primeiro acesso ou nova senha). O mínimo pedido foi 24 h.
+    invite_ttl_hours: int = Field(default=48, ge=24)
     # O seed cria usuários com uma senha única e conhecida. Em produção só roda se for
     # pedido de forma explícita, e só serve para demonstração com dados fictícios.
     allow_demo_seed: bool = False
