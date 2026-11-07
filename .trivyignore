@@ -6,3 +6,11 @@
 # não a incorpora. O Caddy aqui só usa JWS no ACME, com a própria chave de conta, e não
 # lê JWKs enviados por terceiros. Reavaliar quando sair uma imagem nova do Caddy.
 CVE-2026-116587 exp:2026-12-05
+
+# golang.org/x/net/html (v0.60.0) no binário do Caddy (imagem oficial caddy:2-alpine): negação
+# de serviço ao processar HTML malformado (CVE-2026-78661). Já tem correção (x/net 0.62.0), mas
+# a imagem oficial ainda não a incorpora. O Caddy aqui só serve a SPA estática e faz proxy da
+# API (infra/Caddyfile: encode, respond, reverse_proxy, try_files e file_server, sem a
+# diretiva templates), então não processa HTML enviado por terceiros. Reavaliar quando sair
+# uma imagem nova do Caddy.
+CVE-2026-78661 exp:2026-12-05
