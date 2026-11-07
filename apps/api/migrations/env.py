@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
 
 from h2d.config import get_settings
+from h2d.escritorio import models as _escritorio_models  # noqa: F401  (registra agent_events)
 from h2d.models import Base
 
 if context.config.config_file_name is not None:
