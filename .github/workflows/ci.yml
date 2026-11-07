@@ -92,6 +92,11 @@ jobs:
   security:
     name: Segurança
     runs-on: ubuntu-latest
+    # Em pull request o gitleaks lista os commits pela API do GitHub. Sem pull-requests: read ela
+    # responde 403 e o job quebra antes de escanear qualquer coisa.
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v7
         with:
