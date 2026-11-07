@@ -155,7 +155,6 @@ export function ChatPage() {
   return (
     <section>
       <PageHeader
-        live
         title="Assistente"
         description="Descreva o problema e receba a resposta com base nos manuais de TI."
         actions={

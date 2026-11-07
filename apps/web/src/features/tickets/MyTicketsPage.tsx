@@ -44,7 +44,6 @@ export function MyTicketsPage() {
   return (
     <section>
       <PageHeader
-        live
         title="Meus chamados"
         description="Acompanhe o andamento dos chamados que você abriu."
         actions={

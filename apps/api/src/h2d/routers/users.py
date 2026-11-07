@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 
 from h2d.deps import SessionDep, require_role
 from h2d.invites import create_invite, pending_user_ids
-from h2d.models import AuditLog, Role, User
+from h2d.models import AuditLog, Role, Technician, Ticket, User
 from h2d.security import check_password_policy, hash_password
 
 # Toda rota deste módulo exige administrador. O ator fica disponível para a auditoria.
@@ -268,6 +268,49 @@ async def update_user(
         )
     await session.commit()
     return UserAdminOut.model_validate(user)
+
+
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT, operation_id="deleteUser")
+async def delete_user(user_id: uuid.UUID, session: SessionDep, actor: AdminActor) -> None:
+    """Exclui a conta de quem não tem histórico. Quem abriu chamado ou é técnico só se desativa."""
+    user = await session.get(User, user_id)
+    if user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Usuário não encontrado")
+    if user.id == actor.id:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Você não pode excluir a própria conta")
+
+    has_tickets = await session.scalar(
+        select(Ticket.id).where(Ticket.requester_id == user.id).limit(1)
+    )
+    is_technician = await session.scalar(
+        select(Technician.id).where(Technician.user_id == user.id).limit(1)
+    )
+    if has_tickets is not None or is_technician is not None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Esta pessoa tem histórico (chamados ou perfil de técnico) e não pode ser excluída. "
+            "Desative a conta.",
+        )
+
+    before = _snapshot(user)
+    session.add(
+        AuditLog(
+            actor_id=actor.id,
+            action="user.delete",
+            entity_type="user",
+            entity_id=str(user.id),
+            before=before,
+        )
+    )
+    await session.delete(user)
+    try:
+        await session.commit()
+    except IntegrityError as error:
+        await session.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Esta pessoa tem registros ligados e não pode ser excluída. Desative a conta.",
+        ) from error
 
 
 @router.post(

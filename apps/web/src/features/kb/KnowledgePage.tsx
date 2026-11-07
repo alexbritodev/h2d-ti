@@ -47,7 +47,6 @@ export function KnowledgePage() {
   return (
     <section>
       <PageHeader
-        live
         title="Base de conhecimento"
         description="Consulte os manuais e procedimentos publicados pela TI."
       />

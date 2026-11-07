@@ -35,6 +35,7 @@ class TechnicianOut(BaseModel):
     name: str
     is_available: bool
     open_tickets: int
+    max_capacity: int
     skills: list[str]
 
 
@@ -221,6 +222,7 @@ async def list_technicians(session: SessionDep, _: StaffActor) -> list[Technicia
             name=name,
             is_available=t.is_available,
             open_tickets=open_count.get(t.id, 0),
+            max_capacity=t.max_capacity,
             skills=sorted(skills.get(t.id, [])),
         )
         for t, name in rows

@@ -59,6 +59,16 @@ export async function resendInvite(id: string): Promise<Outcome<null>> {
     : { ok: false, message: errorMessage(error, "Não foi possível enviar o link.") };
 }
 
+/** Só quem não tem histórico (chamados ou perfil de técnico) pode ser excluído. */
+export async function deleteUser(id: string): Promise<Outcome<null>> {
+  const { response, error } = await api.DELETE("/api/users/{user_id}", {
+    params: { path: { user_id: id } },
+  });
+  return response.ok
+    ? { ok: true, data: null }
+    : { ok: false, message: errorMessage(error, "Não foi possível excluir o usuário.") };
+}
+
 export async function updateUser(id: string, body: UserUpdate): Promise<Outcome<AdminUser>> {
   const { data, error } = await api.PATCH("/api/users/{user_id}", {
     params: { path: { user_id: id } },

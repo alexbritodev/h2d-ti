@@ -13,7 +13,7 @@ import { Avatar, Kbd } from "@/components/ui/primitives";
 import { Toaster } from "@/components/ui/toast";
 import { api, type Role, type User } from "@/lib/api/client";
 import { logout } from "@/lib/auth";
-import { NOTIFICATIONS, TICKETS } from "@/lib/demo/data";
+import { type Ticket, ticketsQuery } from "@/features/tickets/api";
 import { NAV_ITEMS, navGroupsFor } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
@@ -36,10 +36,29 @@ const healthQuery = {
   },
 };
 
-/** Contadores do menu: mostram o que pede atenção em cada módulo. */
-const NAV_COUNTS: Record<string, number> = {
-  "/chamados": TICKETS.filter((ticket) => ticket.status !== "resolvido").length,
-};
+/** Chamados da equipe: alimentam o contador do menu e os avisos. Só técnico e admin os consultam. */
+function useOpenTickets(enabled: boolean): Ticket[] {
+  const { data } = useQuery({ ...ticketsQuery(), enabled, refetchInterval: 60_000 });
+  return (data ?? []).filter((ticket) => ticket.status !== "resolved");
+}
+
+type Notice = { id: string; title: string; detail: string; urgent: boolean };
+
+/** Avisos tirados dos chamados reais: prazo estourado, prazo em risco e triagem manual. */
+function noticesFrom(tickets: Ticket[]): Notice[] {
+  const notices: Notice[] = [];
+  for (const ticket of tickets) {
+    if (ticket.sla.state === "breached") {
+      notices.push({ id: `${ticket.id}-b`, title: "SLA estourado", detail: `${ticket.code}: ${ticket.summary}`, urgent: true });
+    } else if (ticket.sla.state === "at_risk") {
+      notices.push({ id: `${ticket.id}-r`, title: "SLA em risco", detail: `${ticket.code}: ${ticket.summary}`, urgent: true });
+    }
+    if (ticket.status === "triage") {
+      notices.push({ id: `${ticket.id}-t`, title: "Triagem manual", detail: `${ticket.code} precisa de classificação`, urgent: false });
+    }
+  }
+  return notices.sort((a, b) => Number(b.urgent) - Number(a.urgent)).slice(0, 8);
+}
 
 function SidebarNav({
   role,
@@ -50,6 +69,8 @@ function SidebarNav({
   collapsed?: boolean;
   onNavigate?: () => void;
 }) {
+  const open = useOpenTickets(role !== "user");
+  const counts: Record<string, number> = { "/chamados": open.length };
   return (
     <nav aria-label="Módulos" className="flex-1 space-y-6 overflow-y-auto px-3 py-4">
       {navGroupsFor(role).map((group) => (
@@ -79,9 +100,9 @@ function SidebarNav({
                 >
                   <item.icon aria-hidden className="size-[18px] shrink-0" />
                   {!collapsed && <span className="min-w-0 flex-1 truncate">{item.title}</span>}
-                  {!collapsed && NAV_COUNTS[item.path] && (
-                    <CountBadge count={NAV_COUNTS[item.path]!} />
-                  )}
+                  {!collapsed && counts[item.path] ? (
+                    <CountBadge count={counts[item.path]!} />
+                  ) : null}
                 </Link>
               </li>
             ))}
@@ -191,7 +212,8 @@ function Breadcrumb() {
 }
 
 function Notifications() {
-  const urgent = NOTIFICATIONS.filter((item) => item.urgent).length;
+  const notices = noticesFrom(useOpenTickets(true));
+  const urgent = notices.filter((item) => item.urgent).length;
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
@@ -207,7 +229,10 @@ function Notifications() {
           className="z-30 w-80 max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-surface p-1 shadow-card"
         >
           <DropdownMenu.Label className="px-3 py-2 font-semibold">Notificações</DropdownMenu.Label>
-          {NOTIFICATIONS.map((item) => (
+          {notices.length === 0 && (
+            <p className="px-3 py-4 text-muted">Nada pedindo atenção agora.</p>
+          )}
+          {notices.map((item) => (
             <DropdownMenu.Item
               key={item.id}
               className="flex cursor-pointer gap-3 rounded-lg px-3 py-2 outline-none data-[highlighted]:bg-surface-2"
@@ -222,7 +247,6 @@ function Notifications() {
               <span className="min-w-0">
                 <span className="block font-medium">{item.title}</span>
                 <span className="block text-muted">{item.detail}</span>
-                <span className="block text-xs text-muted">{item.time}</span>
               </span>
             </DropdownMenu.Item>
           ))}
@@ -279,7 +303,7 @@ export function AppShell({ user }: { user: User }) {
             <div className="mx-2 hidden xl:block">
               <ApiStatus />
             </div>
-            {/* Os avisos de exemplo são da operação de TI, não de quem abre chamados. */}
+            {/* Os avisos são da operação de TI, não de quem abre chamados. */}
             {user.role !== "user" && <Notifications />}
             <ThemeToggle />
             <div className="ml-1 hidden items-center gap-2.5 border-l border-border pl-3 sm:flex">

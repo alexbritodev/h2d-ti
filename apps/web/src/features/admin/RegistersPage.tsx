@@ -1,16 +1,16 @@
+import { useQuery } from "@tanstack/react-query";
 import { CheckCircle2, Plus, XCircle } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { useState } from "react";
 
 import { PageHeader } from "@/components/PageHeader";
-import { PriorityBadge } from "@/components/tickets";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { type Column, DataTable } from "@/components/ui/data-table";
-import { Input } from "@/components/ui/input";
-import { Avatar, Card, Field, Modal, Progress, Tabs } from "@/components/ui/primitives";
-import { demoToast } from "@/components/ui/toast";
-import { CATEGORIES, SLA_TARGETS, TECHNICIANS } from "@/lib/demo/data";
+import { Avatar, Card, Progress, Tabs } from "@/components/ui/primitives";
+import { type Technician, techniciansQuery } from "@/features/tickets/api";
+import { PriorityBadge } from "@/features/tickets/badges";
 
+import { type CategoryRow, type SlaRow, categoriesQuery, formatMinutes, slaQuery } from "./api";
 import { UsersTab } from "./UsersTab";
 
 function ActiveBadge({ active, on, off }: { active: boolean; on: string; off: string }) {
@@ -23,7 +23,7 @@ function ActiveBadge({ active, on, off }: { active: boolean; on: string; off: st
   );
 }
 
-const TECHNICIAN_COLUMNS: Column<(typeof TECHNICIANS)[number]>[] = [
+const TECHNICIAN_COLUMNS: Column<Technician>[] = [
   {
     key: "name",
     header: "Técnico",
@@ -51,79 +51,93 @@ const TECHNICIAN_COLUMNS: Column<(typeof TECHNICIANS)[number]>[] = [
   {
     key: "load",
     header: "Carga",
-    sortValue: (technician) => technician.open,
+    sortValue: (technician) => technician.open_tickets,
     render: (technician) => (
       <div className="w-28">
         <p className="mb-1 text-xs text-muted">
-          {technician.open} de {technician.capacity}
+          {technician.open_tickets} de {technician.max_capacity}
         </p>
         <Progress
-          value={(technician.open / technician.capacity) * 100}
-          tone={technician.open / technician.capacity >= 0.9 ? "warn" : "accent"}
+          value={Math.min(100, (technician.open_tickets / technician.max_capacity) * 100)}
+          tone={technician.open_tickets / technician.max_capacity >= 0.9 ? "warn" : "accent"}
           label={`Carga de ${technician.name}`}
         />
       </div>
     ),
   },
-  { key: "resolved", header: "Resolvidos no mês", sortValue: (t) => t.resolved, render: (t) => t.resolved },
   {
     key: "available",
     header: "Situação",
     render: (technician) => (
-      <ActiveBadge active={technician.available} on="Disponível" off="Ausente" />
+      <ActiveBadge active={technician.is_available} on="Disponível" off="Ausente" />
     ),
   },
 ];
 
-const CATEGORY_COLUMNS: Column<(typeof CATEGORIES)[number]>[] = [
-  { key: "name", header: "Categoria", sortValue: (c) => c.name, render: (c) => <span className="font-medium">{c.name}</span> },
+const CATEGORY_COLUMNS: Column<CategoryRow>[] = [
+  {
+    key: "name",
+    header: "Categoria",
+    sortValue: (c) => (c.parent_name ? `${c.parent_name} ${c.name}` : c.name),
+    render: (c) => (
+      <span className={c.parent_name ? "pl-4 text-muted" : "font-medium"}>{c.name}</span>
+    ),
+  },
   { key: "children", header: "Subcategorias", sortValue: (c) => c.children, render: (c) => c.children },
   {
     key: "skill",
     header: "Habilidade padrão",
-    render: (c) => (
-      <Badge tone="info" mono>
-        {c.skill}
-      </Badge>
-    ),
+    render: (c) =>
+      c.skill ? (
+        <Badge tone="info" mono>
+          {c.skill}
+        </Badge>
+      ) : (
+        "—"
+      ),
   },
-  { key: "sla", header: "Política de SLA", render: (c) => c.sla },
-  { key: "active", header: "Situação", render: (c) => <ActiveBadge active={c.active} on="Ativa" off="Inativa" /> },
+  { key: "sla", header: "Política de SLA", render: (c) => c.sla_policy ?? "—" },
+  { key: "active", header: "Situação", render: (c) => <ActiveBadge active={c.is_active} on="Ativa" off="Inativa" /> },
 ];
 
-const SLA_COLUMNS: Column<(typeof SLA_TARGETS)[number]>[] = [
+const SLA_COLUMNS: Column<SlaRow>[] = [
+  { key: "policy", header: "Política", render: (s) => s.policy },
   { key: "priority", header: "Prioridade", render: (s) => <PriorityBadge priority={s.priority} /> },
-  { key: "first", header: "1ª resposta", render: (s) => s.firstResponse },
-  { key: "resolution", header: "Resolução", render: (s) => s.resolution },
-  {
-    key: "compliance",
-    header: "Cumprimento",
-    render: (s) => (
-      <div className="flex w-40 items-center gap-2">
-        <Progress value={s.compliance} label={`Cumprimento de ${s.priority}`} />
-        <span className="text-xs text-muted">{s.compliance}%</span>
-      </div>
-    ),
-  },
+  { key: "first", header: "1ª resposta", render: (s) => formatMinutes(s.first_response_minutes) },
+  { key: "resolution", header: "Resolução", render: (s) => formatMinutes(s.resolution_minutes) },
 ];
 
-const NEW_LABELS: Record<string, string> = {
-  users: "usuário",
-  technicians: "técnico",
-  categories: "categoria",
-  sla: "política de SLA",
-};
+function Table<T>({
+  query,
+  label,
+  columns,
+  rowKey,
+}: {
+  query: { isError: boolean; data: T[] | undefined };
+  label: string;
+  columns: Column<T>[];
+  rowKey: (row: T) => string;
+}) {
+  if (query.isError) {
+    return (
+      <p role="alert" className="py-5 text-danger">
+        Não foi possível carregar: {label.toLowerCase()}.
+      </p>
+    );
+  }
+  return (
+    <div className="-mx-4">
+      <DataTable label={label} columns={columns} rows={query.data ?? []} rowKey={rowKey} />
+    </div>
+  );
+}
 
 export function RegistersPage() {
   const [tab, setTab] = useState("users");
   const [creating, setCreating] = useState(false);
-  const newLabel = NEW_LABELS[tab]!;
-
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    setCreating(false);
-    demoToast("Cadastro criado");
-  }
+  const technicians = useQuery(techniciansQuery);
+  const categories = useQuery(categoriesQuery);
+  const sla = useQuery(slaQuery);
 
   return (
     <section>
@@ -131,10 +145,13 @@ export function RegistersPage() {
         title="Cadastros"
         description="Usuários, técnicos, categorias e prazos de atendimento."
         actions={
-          <Button variant="primary" onClick={() => setCreating(true)}>
-            <Plus aria-hidden className="size-4" />
-            Novo: {newLabel}
-          </Button>
+          // Só usuários são cadastrados por aqui; técnicos, categorias e prazos são lidos do banco.
+          tab === "users" ? (
+            <Button variant="primary" onClick={() => setCreating(true)}>
+              <Plus aria-hidden className="size-4" />
+              Novo: usuário
+            </Button>
+          ) : undefined
         }
       />
 
@@ -152,60 +169,35 @@ export function RegistersPage() {
             {
               value: "technicians",
               label: "Técnicos",
-              count: TECHNICIANS.length,
+              count: technicians.data?.length,
               content: (
-                <div className="-mx-4">
-                  <DataTable label="Técnicos" columns={TECHNICIAN_COLUMNS} rows={TECHNICIANS} rowKey={(t) => t.email} />
-                </div>
+                <Table query={technicians} label="Técnicos" columns={TECHNICIAN_COLUMNS} rowKey={(t) => t.id} />
               ),
             },
             {
               value: "categories",
               label: "Categorias",
-              count: CATEGORIES.length,
+              count: categories.data?.length,
               content: (
-                <div className="-mx-4">
-                  <DataTable label="Categorias" columns={CATEGORY_COLUMNS} rows={CATEGORIES} rowKey={(c) => c.name} />
-                </div>
+                <Table query={categories} label="Categorias" columns={CATEGORY_COLUMNS} rowKey={(c) => c.id} />
               ),
             },
             {
               value: "sla",
               label: "SLAs",
-              count: SLA_TARGETS.length,
+              count: sla.data?.length,
               content: (
-                <div className="-mx-4">
-                  <DataTable label="Prazos de SLA" columns={SLA_COLUMNS} rows={SLA_TARGETS} rowKey={(s) => s.priority} />
-                </div>
+                <Table
+                  query={sla}
+                  label="Prazos de SLA"
+                  columns={SLA_COLUMNS}
+                  rowKey={(s) => `${s.policy}-${s.priority}`}
+                />
               ),
             },
           ]}
         />
       </Card>
-
-      <Modal
-        // Usuários têm formulário próprio, que grava de verdade; os outros cadastros seguem em demonstração.
-        open={creating && tab !== "users"}
-        onOpenChange={setCreating}
-        title={`Novo: ${newLabel}`}
-        footer={
-          <>
-            <Button onClick={() => setCreating(false)}>Cancelar</Button>
-            <Button variant="primary" type="submit" form="new-register">
-              Salvar
-            </Button>
-          </>
-        }
-      >
-        <form id="new-register" onSubmit={submit} className="space-y-4">
-          <Field label="Nome" htmlFor="register-name">
-            <Input id="register-name" required />
-          </Field>
-          <Field label="Descrição" htmlFor="register-description" hint="Opcional">
-            <Input id="register-description" />
-          </Field>
-        </form>
-      </Modal>
     </section>
   );
 }

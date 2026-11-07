@@ -189,7 +189,6 @@ export function DocumentsPage() {
   return (
     <section className="space-y-4">
       <PageHeader
-        live
         title="Documentos"
         description="Envie manuais para a base e acompanhe o processamento."
       />

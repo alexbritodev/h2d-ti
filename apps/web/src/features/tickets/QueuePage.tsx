@@ -86,7 +86,7 @@ export function QueuePage() {
 
   return (
     <section className="space-y-4">
-      <PageHeader live title="Fila de chamados" description="Chamados da equipe, do mais urgente ao mais antigo." />
+      <PageHeader title="Fila de chamados" description="Chamados da equipe, do mais urgente ao mais antigo." />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div role="group" aria-label="Filtrar a fila" className="flex flex-wrap gap-2">

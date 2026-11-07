@@ -13,6 +13,7 @@ import { meQuery } from "@/lib/auth";
 
 import {
   type AdminUser,
+  deleteUser,
   inviteUser,
   resendInvite,
   resetPassword,
@@ -258,6 +259,7 @@ function EditModal({
   const [vip, setVip] = useState(user?.is_vip ?? false);
   const [active, setActive] = useState(user?.is_active ?? true);
   const [busy, setBusy] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -286,6 +288,20 @@ function EditModal({
     setBusy(false);
     if (!result.ok) return setError(result.message);
     toast("Link enviado", `${user.email} recebe um novo link (o anterior deixa de valer).`);
+    onDone();
+  }
+
+  async function remove() {
+    if (!user) return;
+    setBusy(true);
+    setError(null);
+    const result = await deleteUser(user.id);
+    setBusy(false);
+    if (!result.ok) {
+      setConfirmingDelete(false);
+      return setError(result.message);
+    }
+    toast("Usuário excluído", user.email);
     onDone();
   }
 
@@ -384,6 +400,30 @@ function EditModal({
               </div>
             </Field>
           </form>
+
+          {!isSelf && (
+            <div className="space-y-2 border-t border-border pt-4">
+              <p className="font-medium">Excluir conta</p>
+              <p className="text-xs text-muted">
+                Só é possível para quem ainda não abriu chamados nem é técnico. Nos outros casos,
+                desative a conta.
+              </p>
+              {confirmingDelete ? (
+                <div className="flex gap-2">
+                  <Button onClick={remove} disabled={busy}>
+                    {busy ? "Excluindo…" : "Confirmar exclusão"}
+                  </Button>
+                  <Button onClick={() => setConfirmingDelete(false)} disabled={busy}>
+                    Cancelar
+                  </Button>
+                </div>
+              ) : (
+                <Button onClick={() => setConfirmingDelete(true)} disabled={busy}>
+                  Excluir usuário
+                </Button>
+              )}
+            </div>
+          )}
 
           {error && (
             <p role="alert" className="text-sm text-danger">

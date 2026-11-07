@@ -1,10 +1,11 @@
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { Command } from "cmdk";
 import { Search, Ticket as TicketIcon } from "lucide-react";
 import { Dialog } from "radix-ui";
 
 import type { Role } from "@/lib/api/client";
-import { TICKETS } from "@/lib/demo/data";
+import { ticketsQuery } from "@/features/tickets/api";
 import { navItemsFor } from "@/lib/navigation";
 
 const ITEM_CLASS =
@@ -23,6 +24,7 @@ export function CommandPalette({
 }) {
   const navigate = useNavigate();
   const canSeeQueue = role !== "user";
+  const { data: tickets = [] } = useQuery({ ...ticketsQuery(), enabled: open && canSeeQueue });
 
   function go(path: string) {
     onOpenChange(false);
@@ -65,16 +67,16 @@ export function CommandPalette({
               </Command.Group>
               {canSeeQueue && (
                 <Command.Group heading="Chamados" className={GROUP_CLASS}>
-                  {TICKETS.map((ticket) => (
+                  {tickets.map((ticket) => (
                     <Command.Item
-                      key={ticket.code}
-                      value={`${ticket.code} ${ticket.subject}`}
+                      key={ticket.id}
+                      value={`${ticket.code} ${ticket.summary}`}
                       onSelect={() => go("/chamados")}
                       className={ITEM_CLASS}
                     >
                       <TicketIcon aria-hidden className="size-4 shrink-0 text-muted" />
                       <span className="shrink-0 font-mono text-xs text-muted">{ticket.code}</span>
-                      <span className="truncate">{ticket.subject}</span>
+                      <span className="truncate">{ticket.summary}</span>
                     </Command.Item>
                   ))}
                 </Command.Group>

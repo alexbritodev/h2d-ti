@@ -27,9 +27,6 @@ export function toast(title: string, detail?: string) {
 }
 
 /** Aviso padrão das telas que ainda não têm backend. */
-export function demoToast(title: string) {
-  toast(title, "Demonstração: nada foi salvo.");
-}
 
 export function Toaster() {
   const items = useSyncExternalStore(

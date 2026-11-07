@@ -42,7 +42,6 @@ export function DashboardPage() {
   return (
     <section className="space-y-6">
       <PageHeader
-        live
         title="Dashboard"
         description="Números reais do assistente e dos chamados no período."
         actions={

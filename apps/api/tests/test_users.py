@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from h2d.models import AuditLog, Role, User
+from h2d.models import AuditLog, Priority, Role, Ticket, User
 from tests.conftest import PASSWORD
 
 NEW_USER = {
@@ -190,3 +190,46 @@ async def test_redefinir_senha_recusa_senha_fraca(client, make_user):
     response = await client.post(f"/api/users/{alvo.id}/password", json={"password": "abcdef"})
 
     assert response.status_code == 422
+
+
+async def test_admin_exclui_conta_sem_historico(client, make_user, session: AsyncSession):
+    admin = await _login_as(client, make_user, Role.ADMIN)
+    admin_id = admin.id
+    alvo = await make_user(email="alvo@h2d.local")
+    alvo_id = alvo.id
+
+    response = await client.delete(f"/api/users/{alvo_id}")
+
+    assert response.status_code == 204
+    session.expire_all()
+    assert await session.get(User, alvo_id) is None
+    log = await session.scalar(select(AuditLog).where(AuditLog.action == "user.delete"))
+    assert log is not None and log.actor_id == admin_id
+    assert log.before is not None and log.before["email"] == "alvo@h2d.local"
+
+
+async def test_nao_exclui_a_propria_conta(client, make_user):
+    admin = await _login_as(client, make_user, Role.ADMIN)
+
+    assert (await client.delete(f"/api/users/{admin.id}")).status_code == 409
+
+
+async def test_nao_exclui_quem_abriu_chamado(client, make_user, session: AsyncSession):
+    await _login_as(client, make_user, Role.ADMIN)
+    alvo = await make_user(email="alvo@h2d.local")
+    session.add(Ticket(requester_id=alvo.id, summary="VPN", description="", priority=Priority.P3))
+    await session.flush()
+
+    response = await client.delete(f"/api/users/{alvo.id}")
+
+    assert response.status_code == 409
+    assert "Desative" in response.json()["detail"]
+
+
+async def test_exclusao_so_para_admin_e_404_se_nao_existe(client, make_user):
+    await _login_as(client, make_user, Role.ADMIN)
+    assert (await client.delete(f"/api/users/{uuid.uuid4()}")).status_code == 404
+    await client.post("/api/auth/logout")
+    await _login_as(client, make_user, Role.USER, email="comum@h2d.local")
+    alvo = await make_user(email="outro@h2d.local")
+    assert (await client.delete(f"/api/users/{alvo.id}")).status_code == 403
