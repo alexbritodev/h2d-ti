@@ -13,6 +13,7 @@ import { Avatar, Kbd } from "@/components/ui/primitives";
 import { Toaster } from "@/components/ui/toast";
 import { api, type Role, type User } from "@/lib/api/client";
 import { logout } from "@/lib/auth";
+import { useEscritorioEnabled } from "@/features/escritorio/api";
 import { type Ticket, ticketsQuery } from "@/features/tickets/api";
 import { NAV_ITEMS, navGroupsFor } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
@@ -70,10 +71,11 @@ function SidebarNav({
   onNavigate?: () => void;
 }) {
   const open = useOpenTickets(role !== "user");
+  const escritorio = useEscritorioEnabled();
   const counts: Record<string, number> = { "/chamados": open.length };
   return (
     <nav aria-label="Módulos" className="flex-1 space-y-6 overflow-y-auto px-3 py-4">
-      {navGroupsFor(role).map((group) => (
+      {navGroupsFor(role, { escritorio }).map((group) => (
         <div key={group.name}>
           {!collapsed && (
             <p className="mb-1.5 px-3 text-xs font-medium text-sidebar-muted">{group.name}</p>

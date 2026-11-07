@@ -1,5 +1,6 @@
 import {
   BookOpen,
+  Building2,
   ClipboardList,
   Database,
   FileUp,
@@ -13,12 +14,17 @@ import {
 
 import type { Role } from "./api/client";
 
+export type FeatureFlag = "escritorio";
+export type FeatureFlags = Partial<Record<FeatureFlag, boolean>>;
+
 export interface NavItem {
   path: string;
   group: string;
   title: string;
   icon: LucideIcon;
   roles: readonly Role[];
+  /** Item experimental: só aparece quando a flag correspondente está ligada no servidor. */
+  flag?: FeatureFlag;
 }
 
 const STAFF: readonly Role[] = ["tech", "admin"];
@@ -29,6 +35,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { path: "/chat", group: "Atendimento", title: "Assistente", icon: MessagesSquare, roles: EVERYONE },
   { path: "/meus-chamados", group: "Atendimento", title: "Meus chamados", icon: Headset, roles: EVERYONE },
   { path: "/base", group: "Atendimento", title: "Base de conhecimento", icon: BookOpen, roles: EVERYONE },
+  { path: "/escritorio", group: "Atendimento", title: "Escritório", icon: Building2, roles: EVERYONE, flag: "escritorio" },
   { path: "/chamados", group: "Operação de TI", title: "Fila de chamados", icon: ListChecks, roles: STAFF },
   { path: "/dashboard", group: "Operação de TI", title: "Dashboard", icon: LayoutDashboard, roles: STAFF },
   { path: "/admin/ingestao", group: "Administração", title: "Documentos", icon: FileUp, roles: ADMIN },
@@ -37,13 +44,18 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { path: "/admin/configuracoes", group: "Administração", title: "Configurações", icon: Settings, roles: ADMIN },
 ];
 
-export function navItemsFor(role: Role): NavItem[] {
-  return NAV_ITEMS.filter((item) => item.roles.includes(role));
+export function navItemsFor(role: Role, flags: FeatureFlags = {}): NavItem[] {
+  return NAV_ITEMS.filter(
+    (item) => item.roles.includes(role) && (!item.flag || flags[item.flag] === true),
+  );
 }
 
-export function navGroupsFor(role: Role): { name: string; items: NavItem[] }[] {
+export function navGroupsFor(
+  role: Role,
+  flags: FeatureFlags = {},
+): { name: string; items: NavItem[] }[] {
   const groups = new Map<string, NavItem[]>();
-  for (const item of navItemsFor(role)) {
+  for (const item of navItemsFor(role, flags)) {
     groups.set(item.group, [...(groups.get(item.group) ?? []), item]);
   }
   return [...groups].map(([name, items]) => ({ name, items }));

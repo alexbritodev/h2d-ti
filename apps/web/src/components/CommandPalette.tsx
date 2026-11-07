@@ -5,6 +5,7 @@ import { Search, Ticket as TicketIcon } from "lucide-react";
 import { Dialog } from "radix-ui";
 
 import type { Role } from "@/lib/api/client";
+import { useEscritorioEnabled } from "@/features/escritorio/api";
 import { ticketsQuery } from "@/features/tickets/api";
 import { navItemsFor } from "@/lib/navigation";
 
@@ -23,6 +24,7 @@ export function CommandPalette({
   role: Role;
 }) {
   const navigate = useNavigate();
+  const escritorio = useEscritorioEnabled();
   const canSeeQueue = role !== "user";
   const { data: tickets = [] } = useQuery({ ...ticketsQuery(), enabled: open && canSeeQueue });
 
@@ -53,7 +55,7 @@ export function CommandPalette({
                 Nada encontrado.
               </Command.Empty>
               <Command.Group heading="Módulos" className={GROUP_CLASS}>
-                {navItemsFor(role).map((item) => (
+                {navItemsFor(role, { escritorio }).map((item) => (
                   <Command.Item
                     key={item.path}
                     value={item.title}
