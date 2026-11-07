@@ -271,6 +271,83 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/escritorio/atendimentos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Atendimentos
+         * @description Atendimentos com eventos recentes, o mais novo primeiro (seletor da tela).
+         */
+        get: operations["listEscritorioAtendimentos"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/escritorio/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Config */
+        get: operations["getEscritorioConfig"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/escritorio/eventos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Events
+         * @description Eventos de um atendimento em ordem cronológica (modo replay).
+         */
+        get: operations["listEscritorioEventos"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/escritorio/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream Events
+         * @description Eventos novos em SSE. Sem `after`, só o que acontecer daqui para frente (ao vivo).
+         */
+        get: operations["streamEscritorioEventos"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -285,6 +362,26 @@ export interface paths {
         get: operations["getHealth"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/hooks/n8n/escritorio/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Receive Event
+         * @description O n8n registra um passo dos agentes, com a mesma limpeza dos eventos da API.
+         */
+        post: operations["n8nEscritorioEvent"];
         delete?: never;
         options?: never;
         head?: never;
@@ -700,6 +797,91 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AgentEventIn */
+        AgentEventIn: {
+            /** Action */
+            action: string;
+            /** Agent Name */
+            agent_name?: string | null;
+            /** Conversation Id */
+            conversation_id?: string | null;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Room
+             * @enum {string}
+             */
+            room: "recepcao" | "triagem" | "rag" | "banco" | "tecnicos" | "auditoria";
+            /** Summary */
+            summary: string;
+            /** Ticket Id */
+            ticket_id?: string | null;
+            /** User Id */
+            user_id?: string | null;
+        };
+        /** AgentEventOut */
+        AgentEventOut: {
+            /** Action */
+            action: string;
+            /** Agent Name */
+            agent_name: string;
+            /** Conversation Id */
+            conversation_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Metadata */
+            metadata: {
+                [key: string]: unknown;
+            };
+            /** Room */
+            room: string;
+            /** Summary */
+            summary: string;
+            /** Ticket Id */
+            ticket_id: string | null;
+        };
+        /**
+         * AtendimentoOut
+         * @description Um atendimento: a conversa e, se houver, o chamado que nasceu dela.
+         */
+        AtendimentoOut: {
+            /** Active */
+            active: boolean;
+            /** Conversation Id */
+            conversation_id: string | null;
+            /** Events */
+            events: number;
+            /** Key */
+            key: string;
+            /**
+             * Last At
+             * Format: date-time
+             */
+            last_at: string;
+            /** Last Room */
+            last_room: string;
+            /** Last Summary */
+            last_summary: string;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Ticket Code */
+            ticket_code: string | null;
+            /** Ticket Id */
+            ticket_id: string | null;
+        };
         /** AuditEntry */
         AuditEntry: {
             /** Action */
@@ -921,6 +1103,13 @@ export interface components {
             /** Title */
             title: string;
             visibility: components["schemas"]["Visibility"];
+        };
+        /** EscritorioConfigOut */
+        EscritorioConfigOut: {
+            /** Demo */
+            demo: boolean;
+            /** Enabled */
+            enabled: boolean;
         };
         /** EventOut */
         EventOut: {
@@ -2046,6 +2235,144 @@ export interface operations {
             };
         };
     };
+    listEscritorioAtendimentos: {
+        parameters: {
+            query?: {
+                hours?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: {
+                h2d_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AtendimentoOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getEscritorioConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                h2d_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EscritorioConfigOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listEscritorioEventos: {
+        parameters: {
+            query?: {
+                ticket_id?: string | null;
+                conversation_id?: string | null;
+                after?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: {
+                h2d_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentEventOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    streamEscritorioEventos: {
+        parameters: {
+            query?: {
+                ticket_id?: string | null;
+                conversation_id?: string | null;
+                after?: string | null;
+            };
+            header?: {
+                "last-event-id"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                h2d_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     getHealth: {
         parameters: {
             query?: never;
@@ -2062,6 +2389,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthOut"];
+                };
+            };
+        };
+    };
+    n8nEscritorioEvent: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-h2d-timestamp"?: string | null;
+                "x-h2d-signature"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentEventIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentEventOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
