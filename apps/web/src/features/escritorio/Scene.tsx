@@ -1,6 +1,7 @@
 import "./escritorio.css";
 
 import { ROOM_BY_KEY, ROOMS, type RoomKey, type SceneState } from "./engine";
+import { mix, PALETTES, PaletteContext, usePalette, useSceneTheme } from "./palette";
 
 /**
  * Cena isométrica em SVG, desenhada só com polígonos (sem imagens). A projeção é a clássica 2:1:
@@ -211,6 +212,7 @@ function Person({
 type RoomStatus = "active" | "visited" | "idle";
 
 function Room({ roomKey, status }: { roomKey: RoomKey; status: RoomStatus }) {
+  const palette = usePalette();
   const room = ROOM_BY_KEY[roomKey];
   const { x: rx, y: ry } = ORIGIN[roomKey];
   const worker = WORKER[roomKey];
@@ -225,12 +227,12 @@ function Room({ roomKey, status }: { roomKey: RoomKey; status: RoomStatus }) {
     for (let j = 0; j < 4; j += 1) {
       const odd = (i + j) % 2 === 1;
       const fill = active
-        ? shade(room.color, odd ? 0.34 : 0.28)
+        ? mix(room.color, palette.mixBase, palette.activeMix[odd ? 0 : 1])
         : status === "visited"
-          ? shade(room.color, odd ? 0.2 : 0.16)
+          ? mix(room.color, palette.mixBase, palette.visitedMix[odd ? 0 : 1])
           : odd
-            ? "#2b2b30"
-            : "#25252a";
+            ? palette.tileB
+            : palette.tileA;
       tiles.push(
         <polygon
           key={`${i}-${j}`}
@@ -241,7 +243,7 @@ function Room({ roomKey, status }: { roomKey: RoomKey; status: RoomStatus }) {
             project(rx + i, ry + j + 1),
           ])}
           fill={fill}
-          stroke="rgba(0,0,0,.25)"
+          stroke={palette.tileLine}
           strokeWidth={0.6}
         />,
       );
@@ -264,8 +266,8 @@ function Room({ roomKey, status }: { roomKey: RoomKey; status: RoomStatus }) {
         strokeLinejoin="round"
         opacity={active ? 1 : 0}
       />
-      <Box x={rx - 0.14} y={ry} w={0.14} d={4} h={26} color="#3d3d44" />
-      <Box x={rx} y={ry - 0.14} w={4} d={0.14} h={26} color="#46464e" />
+      <Box x={rx - 0.14} y={ry} w={0.14} d={4} h={26} color={palette.wallLeft} />
+      <Box x={rx} y={ry - 0.14} w={4} d={0.14} h={26} color={palette.wallBack} />
       <Box x={rx - 0.14} y={ry - 0.14} w={0.14} d={0.14} h={26} color={room.color} />
       {pieces.map((piece, index) => (
         <Box
@@ -289,7 +291,7 @@ function Room({ roomKey, status }: { roomKey: RoomKey; status: RoomStatus }) {
         fontSize={11}
         fontWeight={500}
         fontFamily="'JetBrains Mono Variable', ui-monospace, monospace"
-        fill={active ? "#ffffff" : "#9a9aa2"}
+        fill={active ? palette.labelActive : palette.labelIdle}
       >
         {room.name}
         {status === "visited" ? " ✓" : ""}
@@ -373,23 +375,28 @@ export function describeScene(state: SceneState): string {
 }
 
 export function OfficeScene({ state }: { state: SceneState }) {
+  const theme = useSceneTheme();
+  const palette = PALETTES[theme];
   const statusOf = (key: RoomKey): RoomStatus =>
     state.active === key ? "active" : state.visited.includes(key) ? "visited" : "idle";
   return (
-    <svg
-      data-testid="office-scene"
-      data-active-room={state.active ?? ""}
-      viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-      role="img"
-      aria-label={describeScene(state)}
-      className="block h-auto w-full"
-      style={{ background: "#121214" }}
-    >
-      {ROOMS.map((room) => (
-        <Room key={room.key} roomKey={room.key} status={statusOf(room.key)} />
-      ))}
-      <Ticket state={state} />
-      <Bubble state={state} />
-    </svg>
+    <PaletteContext.Provider value={palette}>
+      <svg
+        data-testid="office-scene"
+        data-theme={theme}
+        data-active-room={state.active ?? ""}
+        viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+        role="img"
+        aria-label={describeScene(state)}
+        className="block h-auto w-full"
+        style={{ background: palette.background }}
+      >
+        {ROOMS.map((room) => (
+          <Room key={room.key} roomKey={room.key} status={statusOf(room.key)} />
+        ))}
+        <Ticket state={state} />
+        <Bubble state={state} />
+      </svg>
+    </PaletteContext.Provider>
   );
 }
