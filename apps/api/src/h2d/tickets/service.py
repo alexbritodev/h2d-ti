@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from h2d.chat.service import call_llm, llm_calls_today
 from h2d.config import get_settings
+from h2d.escritorio.events import emit_agent_event, sql_metadata
 from h2d.llm.client import LLM, LLMError
 from h2d.models import (
     AppSetting,
@@ -226,7 +227,47 @@ async def create_ticket(
             reason=classification_note,
         )
 
+    # Escritório virtual: eventos só com dados já classificados, sem o texto do usuário.
+    scope: dict[str, Any] = {
+        "ticket_id": ticket.id,
+        "conversation_id": conversation.id if conversation else None,
+        "user_id": requester.id,
+    }
+    chosen = subcategory or category
+    category_name = chosen.name if chosen else None
+    if classification is not None:
+        emit_agent_event(
+            room="triagem",
+            action="classificado",
+            summary=(
+                f"Categoria {category_name or 'sem categoria'}"
+                f" · prioridade {priority.value if priority else 'indefinida'}"
+            ),
+            metadata={
+                "categoria": category_name,
+                "prioridade": priority.value if priority else None,
+                "confianca": confidence,
+            },
+            **scope,
+        )
+    else:
+        emit_agent_event(
+            room="triagem",
+            action="triagem_manual",
+            summary="Sem classificação automática: triagem manual",
+            **scope,
+        )
     candidates, users = await _candidates(session)
+    emit_agent_event(
+        room="banco",
+        action="sql_leitura",
+        summary=f"Consulta de leitura em technicians: {len(candidates)} técnico(s)",
+        metadata=sql_metadata(
+            "technicians",
+            "SELECT technicians JOIN users WHERE users.is_active; SELECT tickets abertos",
+        ),
+        **scope,
+    )
     required_skill = category.default_skill_id if category else None
     decision = route(
         candidates,
@@ -241,6 +282,13 @@ async def create_ticket(
         now=now,
         timezone=TIMEZONE,
     )
+    emit_agent_event(
+        room="tecnicos",
+        action="chamado_criado",
+        summary=f"Chamado {ticket.code} criado",
+        metadata={"codigo": ticket.code},
+        **scope,
+    )
     technician_user = None
     if decision.technician_id is not None:
         ticket.technician_id = decision.technician_id
@@ -253,10 +301,31 @@ async def create_ticket(
             payload={"technician_id": str(decision.technician_id)},
             reason=decision.reason,
         )
+        emit_agent_event(
+            room="tecnicos",
+            action="chamado_atribuido",
+            summary=f"Chamado {ticket.code} atribuído a {technician_user.name}",
+            metadata={"codigo": ticket.code, "tecnico": technician_user.name},
+            **scope,
+        )
     else:
         ticket.status = TicketStatus.TRIAGE
         add_event(session, ticket, "triage", reason=decision.reason)
+        emit_agent_event(
+            room="tecnicos",
+            action="aguardando_triagem",
+            summary=f"Chamado {ticket.code} sem técnico: aguardando triagem",
+            metadata={"codigo": ticket.code},
+            **scope,
+        )
     await session.flush()
+    emit_agent_event(
+        room="auditoria",
+        action="evento_registrado",
+        summary="Chamado e classificação gravados na linha do tempo",
+        metadata={"codigo": ticket.code},
+        **scope,
+    )
 
     payload = _ticket_payload(ticket, requester, technician_user)
     payload["notify_leader"] = decision.notify_leader

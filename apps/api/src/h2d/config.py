@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     # O seed cria usuários com uma senha única e conhecida. Em produção só roda se for
     # pedido de forma explícita, e só serve para demonstração com dados fictícios.
     allow_demo_seed: bool = False
+    # Escritório virtual (experimento). Desligado, nada é registrado nem exposto.
+    escritorio_virtual_enabled: bool = False
+    # Libera os cenários roteirizados da tela (não grava nada no banco).
+    escritorio_virtual_demo: bool = False
 
     @model_validator(mode="after")
     def _production_is_safe(self) -> Self:

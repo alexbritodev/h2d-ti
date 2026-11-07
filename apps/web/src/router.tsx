@@ -18,6 +18,8 @@ import { RegistersPage } from "@/features/admin/RegistersPage";
 import { SettingsPage } from "@/features/admin/SettingsPage";
 import { ChatPage } from "@/features/chat/ChatPage";
 import { DashboardPage } from "@/features/dashboard/DashboardPage";
+import { escritorioConfigQuery } from "@/features/escritorio/api";
+import { EscritorioPage } from "@/features/escritorio/EscritorioPage";
 import { KnowledgePage } from "@/features/kb/KnowledgePage";
 import { MyTicketsPage } from "@/features/tickets/MyTicketsPage";
 import { QueuePage } from "@/features/tickets/QueuePage";
@@ -29,6 +31,7 @@ const PAGES: Record<string, () => ReactNode> = {
   "/chat": ChatPage,
   "/meus-chamados": MyTicketsPage,
   "/base": KnowledgePage,
+  "/escritorio": EscritorioPage,
   "/chamados": QueuePage,
   "/dashboard": DashboardPage,
   "/admin/ingestao": DocumentsPage,
@@ -96,9 +99,16 @@ const screenRoutes = NAV_ITEMS.map((item) =>
   createRoute({
     getParentRoute: () => appRoute,
     path: item.path,
-    beforeLoad: ({ context }) => {
+    beforeLoad: async ({ context }) => {
       if (!item.roles.includes(context.user.role)) {
         throw redirect({ to: homeFor(context.user.role) });
+      }
+      // Recurso experimental: com a flag desligada no servidor a rota não existe para o usuário.
+      if (item.flag === "escritorio") {
+        const config = await context.queryClient
+          .ensureQueryData(escritorioConfigQuery)
+          .catch(() => null);
+        if (!config?.enabled) throw redirect({ to: homeFor(context.user.role) });
       }
     },
     component: PAGES[item.path],

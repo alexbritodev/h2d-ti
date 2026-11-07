@@ -8,6 +8,7 @@ from fastapi import APIRouter, FastAPI
 
 from h2d import __version__
 from h2d.config import get_settings
+from h2d.escritorio import router as escritorio
 from h2d.kb.embeddings import embed_async, get_embedder
 from h2d.routers import admin, auth, chat, health, hooks, kb, metrics, tickets, users
 
@@ -59,6 +60,9 @@ def create_app() -> FastAPI:
     api.include_router(tickets.router)
     api.include_router(metrics.router)
     api.include_router(hooks.router)
+    # Escritório virtual (experimento): as rotas respondem 404 com a flag desligada.
+    api.include_router(escritorio.router)
+    api.include_router(escritorio.hooks_router)
     app.include_router(api)
     return app
 

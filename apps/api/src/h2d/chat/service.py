@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from h2d.chat import prompts
 from h2d.chat.masking import mask_sensitive
 from h2d.config import get_settings
+from h2d.escritorio.events import emit_agent_event
 from h2d.kb.embeddings import Embedder
 from h2d.kb.search import Hit, search_chunks
 from h2d.llm.client import LLM, ChatMessage, LLMError, LLMResult
@@ -216,6 +217,15 @@ async def handle_user_message(
     if conversation.title is None:
         conversation.title = masked.text.strip().replace("\n", " ")[:80]
     await session.flush()
+    # Escritório virtual: o resumo não leva o texto do usuário, só o tamanho.
+    emit_agent_event(
+        room="recepcao",
+        action="mensagem_recebida",
+        summary="Mensagem recebida do usuário",
+        conversation_id=conversation.id,
+        user_id=conversation.user_id,
+        metadata={"caracteres": len(masked.text), "redacoes": masked.redactions},
+    )
     note = (
         prompts.REDACTION_NOTE.format(kinds=", ".join(sorted(masked.kinds)))
         if masked.redactions
@@ -280,6 +290,18 @@ async def handle_user_message(
 
     hits = await search_chunks(
         session, query, embedder, can_see_it=can_see_it(user), limit=SEARCH_LIMIT
+    )
+    emit_agent_event(
+        room="rag",
+        action="rag_busca",
+        summary=f"Busca na base: {len(hits)} trecho(s) encontrado(s)",
+        conversation_id=conversation.id,
+        user_id=conversation.user_id,
+        metadata={
+            "top_k": SEARCH_LIMIT,
+            "encontrados": len(hits),
+            "fontes": sorted({hit.document_title for hit in hits})[:5],
+        },
     )
     if not hits:
         return await reply("not_found", prompts.NOT_FOUND_TEXT, reason="no_hits")

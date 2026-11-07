@@ -21,6 +21,7 @@ from h2d.chat.service import (
 )
 from h2d.config import get_settings
 from h2d.deps import CurrentUser, SessionDep
+from h2d.escritorio.events import emit_agent_event
 from h2d.kb.embeddings import Embedder, get_embedder
 from h2d.llm.client import LLM, get_llm
 from h2d.models import Conversation, ConversationStatus, Message, Ticket
@@ -212,6 +213,15 @@ async def send_message(
             if delay:
                 await asyncio.sleep(delay)
         yield _sse("sources", {"citations": result.citations})
+        emit_agent_event(
+            room="recepcao",
+            action="resposta_enviada",
+            summary="Resposta enviada ao usuário",
+            ticket_id=ticket.id if ticket is not None else None,
+            conversation_id=conversation.id,
+            user_id=user.id,
+            metadata={"acao": result.action, "fontes": len(result.citations)},
+        )
         yield _sse(
             "done",
             {
