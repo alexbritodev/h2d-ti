@@ -43,6 +43,14 @@ e, em outro terminal, a partir de `apps/web`:
 npm run dev
 ```
 
+### Ligar na VPS (Portainer)
+
+O `docker-compose.yml` repassa as duas variáveis à API (`x-api-env`), com padrão `false`. Para
+ligar: em Stacks → `h2d-ti` → Environment variables, cadastre `ESCRITORIO_VIRTUAL_ENABLED=true`
+(e `ESCRITORIO_VIRTUAL_DEMO=true` se quiser a aba de demonstração) e faça **Pull and redeploy**.
+Variáveis que não estão listadas no compose **não chegam ao container**, por isso uma variável
+nova do stack só vale depois de entrar em `x-api-env`.
+
 ### Variáveis de ambiente
 
 | Variável | Padrão | O que faz |

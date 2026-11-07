@@ -29,6 +29,10 @@ x-api-env: &api-env
   INVITE_TTL_HOURS: ${INVITE_TTL_HOURS:-48}
   # Opcional: token do Hugging Face (gratuito) eleva o limite de download do modelo (erro 429).
   HF_TOKEN: ${HF_TOKEN:-}
+  # Escritório virtual (experimento, docs/escritorio-virtual.md). Desligado por padrão: ligue com
+  # ESCRITORIO_VIRTUAL_ENABLED=true nas variáveis do stack. A demo só vale com o recurso ligado.
+  ESCRITORIO_VIRTUAL_ENABLED: ${ESCRITORIO_VIRTUAL_ENABLED:-false}
+  ESCRITORIO_VIRTUAL_DEMO: ${ESCRITORIO_VIRTUAL_DEMO:-false}
 
 services:
   db:

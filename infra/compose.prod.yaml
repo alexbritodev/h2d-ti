@@ -37,6 +37,9 @@ services:
       COOKIE_SECURE: "true"
       ALLOW_DEMO_SEED: ${ALLOW_DEMO_SEED:-false}
       SEED_PASSWORD: ${SEED_PASSWORD:-}
+      # Escritório virtual (experimento): desligado por padrão.
+      ESCRITORIO_VIRTUAL_ENABLED: ${ESCRITORIO_VIRTUAL_ENABLED:-false}
+      ESCRITORIO_VIRTUAL_DEMO: ${ESCRITORIO_VIRTUAL_DEMO:-false}
     healthcheck:
       test:
         - CMD
