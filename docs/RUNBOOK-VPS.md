@@ -58,7 +58,7 @@ O n8n sobe no stack, com banco próprio (`n8n`) e **sem endereço público** (de
 **Configuração única, depois do primeiro deploy:**
 
 1. Abra o editor do n8n e crie o dono (quem abrir primeiro vira dono). Guarde `N8N_ENCRYPTION_KEY` fora da VPS.
-2. No console do container `h2d-n8n`, importe os workflows (a imagem já leva os arquivos) e publique os três, **o de erro primeiro**:
+2. **Automático:** a cada subida do container `h2d-n8n`, o `n8n/start-h2d.sh` importa e publica os três workflows (confira o log do container; falhas aparecem como `[h2d] falhou`). Para fazer à mão, no console do container, **o de erro primeiro**:
 
 ```bash
 n8n import:workflow --separate --input=/home/node/h2d-workflows
