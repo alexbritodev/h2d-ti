@@ -5,7 +5,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Select, Skeleton, Tabs } from "@/components/ui/primitives";
+import { Select, Skeleton, Switch, Tabs } from "@/components/ui/primitives";
 
 import {
   atendimentosQuery,
@@ -25,6 +25,7 @@ import {
 } from "./engine";
 import { useEventStream, useTimeline, type Timeline } from "./hooks";
 import { LogPanel } from "./LogPanel";
+import { useMiniMode } from "./mini";
 import { OfficeScene } from "./Scene";
 
 type Mode = "live" | "replay" | "demo";
@@ -250,6 +251,7 @@ function DemoView() {
 export function EscritorioPage() {
   const config = useQuery(escritorioConfigQuery);
   const [mode, setMode] = useState<Mode>("live");
+  const [mini, setMini] = useMiniMode();
   const tabs = [
     { value: "live", label: "Ao vivo" },
     { value: "replay", label: "Replay" },
@@ -260,6 +262,16 @@ export function EscritorioPage() {
       <PageHeader
         title="Escritório virtual"
         description="Veja os agentes do sistema trabalhando, sala por sala, em cada atendimento."
+        actions={
+          <div className="flex items-center gap-2 text-sm text-muted">
+            <span aria-hidden>Mini-escritório nas outras telas</span>
+            <Switch
+              label="Mostrar o mini-escritório nas outras telas"
+              checked={mini !== "off"}
+              onCheckedChange={(on) => setMini(on ? "open" : "off")}
+            />
+          </div>
+        }
       />
       <Tabs label="Modo de exibição" tabs={tabs} value={mode} onValueChange={(v) => setMode(v as Mode)} />
       <div className="pt-4">

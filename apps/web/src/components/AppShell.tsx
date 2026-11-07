@@ -14,6 +14,7 @@ import { Toaster } from "@/components/ui/toast";
 import { api, type Role, type User } from "@/lib/api/client";
 import { logout } from "@/lib/auth";
 import { useEscritorioEnabled } from "@/features/escritorio/api";
+import { MiniOffice } from "@/features/escritorio/MiniOffice";
 import { type Ticket, ticketsQuery } from "@/features/tickets/api";
 import { NAV_ITEMS, navGroupsFor } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
@@ -260,6 +261,8 @@ function Notifications() {
 
 export function AppShell({ user }: { user: User }) {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const escritorioEnabled = useEscritorioEnabled();
   const queryClient = useQueryClient();
   const [searchOpen, setSearchOpen] = useState(false);
 
@@ -329,6 +332,10 @@ export function AppShell({ user }: { user: User }) {
       </div>
 
       <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} role={user.role} />
+      {/* Mini-escritório (experimento): só com a flag ligada e fora da tela cheia do escritório. */}
+      {escritorioEnabled && pathname !== "/escritorio" && (
+        <MiniOffice onOpenFull={() => void navigate({ to: "/escritorio" })} />
+      )}
       <Toaster />
     </div>
   );

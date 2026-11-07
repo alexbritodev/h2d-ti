@@ -63,6 +63,23 @@ npm run dev
   2. consulta de status ao banco (só leitura);
   3. escalonamento para técnico (percorre as seis salas).
 
+### Mini-escritório (canto das outras telas)
+
+Com o recurso ligado, um mini-escritório flutua no canto inferior direito de **qualquer tela**
+(menos da própria tela do Escritório), para acompanhar o fluxo sem sair do que se está fazendo.
+Ele segue o atendimento que se mexeu por último e, ao abrir uma tela, já mostra como o último
+atendimento terminou; o botão de rever repete a animação.
+
+![Mini-escritório](escritorio-virtual/mini.jpg)
+
+- **Opcional:** minimizar (vira só um botão), ocultar (some e fecha a conexão ao vivo) e religar
+  pelo interruptor "Mini-escritório nas outras telas" na tela do Escritório. A escolha fica
+  guardada no navegador (`h2d-escritorio-mini`).
+- **Tamanho ajustável:** arraste a alça do canto superior esquerdo (ou use as setas, `Home` e
+  `End` com ela focada). Clique duplo ou `Esc` voltam ao padrão (416 px). Vai de 288 a 960 px,
+  sempre limitado à largura da tela, e a cena escala junto (`h2d-escritorio-mini-width`).
+- Em telas estreitas (celular) ele não aparece, para não cobrir o conteúdo.
+
 A cena respeita `prefers-reduced-motion` (sem animações, só a troca de sala) e tem descrição
 acessível; o log usa `role="log"` com atualização educada para leitores de tela.
 
