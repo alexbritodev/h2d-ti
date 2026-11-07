@@ -36,6 +36,9 @@ services:
       N8N_WEBHOOK_URL: http://n8n:5678/webhook/h2d-events
       N8N_HMAC_SECRET: ${N8N_HMAC_SECRET:-hmac-de-desenvolvimento-local}
       TEST_DATABASE_URL: postgresql+asyncpg://h2d:${H2D_DB_PASSWORD}@db:5432/h2d_test
+      # Escritório virtual (experimento): defina no .env para ligar.
+      ESCRITORIO_VIRTUAL_ENABLED: ${ESCRITORIO_VIRTUAL_ENABLED:-false}
+      ESCRITORIO_VIRTUAL_DEMO: ${ESCRITORIO_VIRTUAL_DEMO:-false}
       # No Docker com Windows, eventos de arquivo não chegam ao container.
       WATCHFILES_FORCE_POLLING: "true"
     command: sh -c "alembic upgrade head && uvicorn h2d.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/src"
