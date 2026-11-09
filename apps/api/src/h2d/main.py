@@ -10,7 +10,7 @@ from h2d import __version__
 from h2d.config import get_settings
 from h2d.escritorio import router as escritorio
 from h2d.kb.embeddings import embed_async, get_embedder
-from h2d.routers import admin, auth, chat, health, hooks, kb, metrics, tickets, users
+from h2d.routers import admin, auth, chat, health, hooks, kb, metrics, rag, tickets, users
 
 log = logging.getLogger("h2d.api")
 
@@ -56,6 +56,7 @@ def create_app() -> FastAPI:
     api.include_router(users.router)
     api.include_router(admin.router)
     api.include_router(kb.router)
+    api.include_router(rag.router)
     api.include_router(chat.router)
     api.include_router(tickets.router)
     api.include_router(metrics.router)

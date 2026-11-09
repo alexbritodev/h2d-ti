@@ -10,6 +10,7 @@ import {
   type LucideIcon,
   MessagesSquare,
   Settings,
+  Workflow,
 } from "lucide-react";
 
 import type { Role } from "./api/client";
@@ -39,6 +40,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { path: "/chamados", group: "Operação de TI", title: "Fila de chamados", icon: ListChecks, roles: STAFF },
   { path: "/dashboard", group: "Operação de TI", title: "Dashboard", icon: LayoutDashboard, roles: STAFF },
   { path: "/admin/ingestao", group: "Administração", title: "Documentos", icon: FileUp, roles: ADMIN },
+  { path: "/admin/rag", group: "Administração", title: "Fluxo do RAG", icon: Workflow, roles: ADMIN },
   { path: "/admin/cadastros", group: "Administração", title: "Cadastros", icon: Database, roles: ADMIN },
   { path: "/admin/auditoria", group: "Administração", title: "Auditoria", icon: ClipboardList, roles: ADMIN },
   { path: "/admin/configuracoes", group: "Administração", title: "Configurações", icon: Settings, roles: ADMIN },

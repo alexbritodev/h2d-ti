@@ -500,6 +500,91 @@
         "title": "CategoryOut",
         "type": "object"
       },
+      "ChunkAnatomy": {
+        "properties": {
+          "breadcrumb": {
+            "title": "Breadcrumb",
+            "type": "string"
+          },
+          "chunk_id": {
+            "format": "uuid",
+            "title": "Chunk Id",
+            "type": "string"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "document_id": {
+            "format": "uuid",
+            "title": "Document Id",
+            "type": "string"
+          },
+          "embedding": {
+            "$ref": "#/components/schemas/EmbeddingStage"
+          },
+          "lexemes": {
+            "items": {
+              "$ref": "#/components/schemas/LexemeOut"
+            },
+            "title": "Lexemes",
+            "type": "array"
+          },
+          "model_max_tokens": {
+            "title": "Model Max Tokens",
+            "type": "integer"
+          },
+          "position": {
+            "title": "Position",
+            "type": "integer"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "token_count": {
+            "title": "Token Count",
+            "type": "integer"
+          },
+          "tokens": {
+            "items": {
+              "$ref": "#/components/schemas/TokenOut"
+            },
+            "title": "Tokens",
+            "type": "array"
+          },
+          "truncated": {
+            "title": "Truncated",
+            "type": "boolean"
+          },
+          "visibility": {
+            "title": "Visibility",
+            "type": "string"
+          },
+          "words": {
+            "title": "Words",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "chunk_id",
+          "document_id",
+          "title",
+          "breadcrumb",
+          "position",
+          "visibility",
+          "content",
+          "words",
+          "tokens",
+          "token_count",
+          "model_max_tokens",
+          "truncated",
+          "lexemes",
+          "embedding"
+        ],
+        "title": "ChunkAnatomy",
+        "type": "object"
+      },
       "Citation": {
         "properties": {
           "breadcrumb": {
@@ -929,6 +1014,47 @@
         "title": "DocumentView",
         "type": "object"
       },
+      "EmbeddingStage": {
+        "properties": {
+          "dimensions": {
+            "title": "Dimensions",
+            "type": "integer"
+          },
+          "maximum": {
+            "title": "Maximum",
+            "type": "number"
+          },
+          "minimum": {
+            "title": "Minimum",
+            "type": "number"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "norm": {
+            "title": "Norm",
+            "type": "number"
+          },
+          "values": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Values",
+            "type": "array"
+          }
+        },
+        "required": [
+          "model",
+          "dimensions",
+          "norm",
+          "minimum",
+          "maximum",
+          "values"
+        ],
+        "title": "EmbeddingStage",
+        "type": "object"
+      },
       "EscritorioConfigOut": {
         "properties": {
           "demo": {
@@ -1015,6 +1141,125 @@
           "value"
         ],
         "title": "FeedbackIn",
+        "type": "object"
+      },
+      "FusionRow": {
+        "properties": {
+          "breadcrumb": {
+            "title": "Breadcrumb",
+            "type": "string"
+          },
+          "chunk_id": {
+            "format": "uuid",
+            "title": "Chunk Id",
+            "type": "string"
+          },
+          "lexical_part": {
+            "title": "Lexical Part",
+            "type": "number"
+          },
+          "lexical_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lexical Rank"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "selected": {
+            "title": "Selected",
+            "type": "boolean"
+          },
+          "snippet": {
+            "title": "Snippet",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "vector_part": {
+            "title": "Vector Part",
+            "type": "number"
+          },
+          "vector_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vector Rank"
+          }
+        },
+        "required": [
+          "chunk_id",
+          "title",
+          "breadcrumb",
+          "snippet",
+          "vector_rank",
+          "lexical_rank",
+          "vector_part",
+          "lexical_part",
+          "score",
+          "selected"
+        ],
+        "title": "FusionRow",
+        "type": "object"
+      },
+      "GenerationStage": {
+        "properties": {
+          "calls_per_turn": {
+            "title": "Calls Per Turn",
+            "type": "string"
+          },
+          "calls_today": {
+            "title": "Calls Today",
+            "type": "integer"
+          },
+          "daily_limit": {
+            "title": "Daily Limit",
+            "type": "integer"
+          },
+          "fallbacks": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Fallbacks",
+            "type": "array"
+          },
+          "max_tokens": {
+            "title": "Max Tokens",
+            "type": "integer"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "temperature": {
+            "title": "Temperature",
+            "type": "number"
+          }
+        },
+        "required": [
+          "model",
+          "fallbacks",
+          "temperature",
+          "max_tokens",
+          "calls_per_turn",
+          "daily_limit",
+          "calls_today"
+        ],
+        "title": "GenerationStage",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -1218,6 +1463,63 @@
         "title": "JobState",
         "type": "string"
       },
+      "LexemeOut": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "lexeme": {
+            "title": "Lexeme",
+            "type": "string"
+          }
+        },
+        "required": [
+          "lexeme",
+          "count"
+        ],
+        "title": "LexemeOut",
+        "type": "object"
+      },
+      "LexicalHit": {
+        "properties": {
+          "breadcrumb": {
+            "title": "Breadcrumb",
+            "type": "string"
+          },
+          "chunk_id": {
+            "format": "uuid",
+            "title": "Chunk Id",
+            "type": "string"
+          },
+          "rank": {
+            "title": "Rank",
+            "type": "integer"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "snippet": {
+            "title": "Snippet",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chunk_id",
+          "title",
+          "breadcrumb",
+          "snippet",
+          "rank",
+          "score"
+        ],
+        "title": "LexicalHit",
+        "type": "object"
+      },
       "LibraryItem": {
         "properties": {
           "category": {
@@ -1286,6 +1588,37 @@
           "password"
         ],
         "title": "LoginRequest",
+        "type": "object"
+      },
+      "MaskingStage": {
+        "properties": {
+          "kinds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Kinds",
+            "type": "array"
+          },
+          "masked_text": {
+            "title": "Masked Text",
+            "type": "string"
+          },
+          "original_chars": {
+            "title": "Original Chars",
+            "type": "integer"
+          },
+          "redactions": {
+            "title": "Redactions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "original_chars",
+          "masked_text",
+          "redactions",
+          "kinds"
+        ],
+        "title": "MaskingStage",
         "type": "object"
       },
       "MessageOut": {
@@ -1378,6 +1711,48 @@
         "title": "Overview",
         "type": "object"
       },
+      "OverviewOut": {
+        "properties": {
+          "avg_words": {
+            "title": "Avg Words",
+            "type": "number"
+          },
+          "chunks": {
+            "title": "Chunks",
+            "type": "integer"
+          },
+          "documents": {
+            "title": "Documents",
+            "type": "integer"
+          },
+          "max_words": {
+            "title": "Max Words",
+            "type": "integer"
+          },
+          "params": {
+            "$ref": "#/components/schemas/PipelineParams"
+          },
+          "public_chunks": {
+            "title": "Public Chunks",
+            "type": "integer"
+          },
+          "restricted_chunks": {
+            "title": "Restricted Chunks",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "documents",
+          "chunks",
+          "avg_words",
+          "max_words",
+          "public_chunks",
+          "restricted_chunks",
+          "params"
+        ],
+        "title": "OverviewOut",
+        "type": "object"
+      },
       "PasswordReset": {
         "properties": {
           "password": {
@@ -1390,6 +1765,69 @@
           "password"
         ],
         "title": "PasswordReset",
+        "type": "object"
+      },
+      "PipelineParams": {
+        "properties": {
+          "answer_model": {
+            "title": "Answer Model",
+            "type": "string"
+          },
+          "calls_today": {
+            "title": "Calls Today",
+            "type": "integer"
+          },
+          "candidates": {
+            "title": "Candidates",
+            "type": "integer"
+          },
+          "chunk_max_words": {
+            "title": "Chunk Max Words",
+            "type": "integer"
+          },
+          "daily_limit": {
+            "title": "Daily Limit",
+            "type": "integer"
+          },
+          "embedding_dimensions": {
+            "title": "Embedding Dimensions",
+            "type": "integer"
+          },
+          "embedding_model": {
+            "title": "Embedding Model",
+            "type": "string"
+          },
+          "history_messages": {
+            "title": "History Messages",
+            "type": "integer"
+          },
+          "model_max_tokens": {
+            "title": "Model Max Tokens",
+            "type": "integer"
+          },
+          "rrf_k": {
+            "title": "Rrf K",
+            "type": "integer"
+          },
+          "search_limit": {
+            "title": "Search Limit",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "chunk_max_words",
+          "model_max_tokens",
+          "embedding_model",
+          "embedding_dimensions",
+          "rrf_k",
+          "candidates",
+          "search_limit",
+          "history_messages",
+          "answer_model",
+          "daily_limit",
+          "calls_today"
+        ],
+        "title": "PipelineParams",
         "type": "object"
       },
       "Priority": {
@@ -1437,6 +1875,47 @@
         "title": "PromptOut",
         "type": "object"
       },
+      "PromptStage": {
+        "properties": {
+          "approx_input_tokens": {
+            "title": "Approx Input Tokens",
+            "type": "integer"
+          },
+          "history_messages": {
+            "title": "History Messages",
+            "type": "integer"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SelectedChunk"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "sources_block": {
+            "title": "Sources Block",
+            "type": "string"
+          },
+          "system_prompt": {
+            "title": "System Prompt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "system_prompt",
+          "sources_block",
+          "question",
+          "history_messages",
+          "sources",
+          "approx_input_tokens"
+        ],
+        "title": "PromptStage",
+        "type": "object"
+      },
       "ResolveIn": {
         "properties": {
           "solution": {
@@ -1477,6 +1956,45 @@
           "content"
         ],
         "title": "SectionOut",
+        "type": "object"
+      },
+      "SelectedChunk": {
+        "properties": {
+          "breadcrumb": {
+            "title": "Breadcrumb",
+            "type": "string"
+          },
+          "chunk_id": {
+            "format": "uuid",
+            "title": "Chunk Id",
+            "type": "string"
+          },
+          "position": {
+            "title": "Position",
+            "type": "integer"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "token_count": {
+            "title": "Token Count",
+            "type": "integer"
+          },
+          "truncated": {
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "chunk_id",
+          "title",
+          "breadcrumb",
+          "position",
+          "token_count",
+          "truncated"
+        ],
+        "title": "SelectedChunk",
         "type": "object"
       },
       "SendMessage": {
@@ -2009,6 +2527,191 @@
         "title": "TicketUpdate",
         "type": "object"
       },
+      "Timing": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "ms": {
+            "title": "Ms",
+            "type": "number"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          }
+        },
+        "required": [
+          "stage",
+          "label",
+          "ms"
+        ],
+        "title": "Timing",
+        "type": "object"
+      },
+      "TokenOut": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "id"
+        ],
+        "title": "TokenOut",
+        "type": "object"
+      },
+      "TokenizationStage": {
+        "properties": {
+          "model_max_tokens": {
+            "title": "Model Max Tokens",
+            "type": "integer"
+          },
+          "model_token_count": {
+            "title": "Model Token Count",
+            "type": "integer"
+          },
+          "model_tokens": {
+            "items": {
+              "$ref": "#/components/schemas/TokenOut"
+            },
+            "title": "Model Tokens",
+            "type": "array"
+          },
+          "tsquery_parsed": {
+            "title": "Tsquery Parsed",
+            "type": "string"
+          },
+          "tsquery_raw": {
+            "title": "Tsquery Raw",
+            "type": "string"
+          },
+          "words": {
+            "items": {
+              "$ref": "#/components/schemas/WordOut"
+            },
+            "title": "Words",
+            "type": "array"
+          }
+        },
+        "required": [
+          "model_tokens",
+          "model_token_count",
+          "model_max_tokens",
+          "words",
+          "tsquery_raw",
+          "tsquery_parsed"
+        ],
+        "title": "TokenizationStage",
+        "type": "object"
+      },
+      "TraceIn": {
+        "properties": {
+          "question": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Question",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question"
+        ],
+        "title": "TraceIn",
+        "type": "object"
+      },
+      "TraceOut": {
+        "properties": {
+          "candidates": {
+            "title": "Candidates",
+            "type": "integer"
+          },
+          "embedding": {
+            "$ref": "#/components/schemas/EmbeddingStage"
+          },
+          "fusion": {
+            "items": {
+              "$ref": "#/components/schemas/FusionRow"
+            },
+            "title": "Fusion",
+            "type": "array"
+          },
+          "generation": {
+            "$ref": "#/components/schemas/GenerationStage"
+          },
+          "lexical": {
+            "items": {
+              "$ref": "#/components/schemas/LexicalHit"
+            },
+            "title": "Lexical",
+            "type": "array"
+          },
+          "masking": {
+            "$ref": "#/components/schemas/MaskingStage"
+          },
+          "prompt": {
+            "$ref": "#/components/schemas/PromptStage"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          },
+          "rrf_k": {
+            "title": "Rrf K",
+            "type": "integer"
+          },
+          "search_limit": {
+            "title": "Search Limit",
+            "type": "integer"
+          },
+          "timings": {
+            "items": {
+              "$ref": "#/components/schemas/Timing"
+            },
+            "title": "Timings",
+            "type": "array"
+          },
+          "tokenization": {
+            "$ref": "#/components/schemas/TokenizationStage"
+          },
+          "total_ms": {
+            "title": "Total Ms",
+            "type": "number"
+          },
+          "vector": {
+            "items": {
+              "$ref": "#/components/schemas/VectorHit"
+            },
+            "title": "Vector",
+            "type": "array"
+          }
+        },
+        "required": [
+          "question",
+          "masking",
+          "tokenization",
+          "embedding",
+          "vector",
+          "lexical",
+          "fusion",
+          "rrf_k",
+          "candidates",
+          "search_limit",
+          "prompt",
+          "generation",
+          "timings",
+          "total_ms"
+        ],
+        "title": "TraceOut",
+        "type": "object"
+      },
       "TriageSettings": {
         "properties": {
           "confidence_threshold": {
@@ -2360,6 +3063,45 @@
         "title": "ValidationError",
         "type": "object"
       },
+      "VectorHit": {
+        "properties": {
+          "breadcrumb": {
+            "title": "Breadcrumb",
+            "type": "string"
+          },
+          "chunk_id": {
+            "format": "uuid",
+            "title": "Chunk Id",
+            "type": "string"
+          },
+          "rank": {
+            "title": "Rank",
+            "type": "integer"
+          },
+          "similarity": {
+            "title": "Similarity",
+            "type": "number"
+          },
+          "snippet": {
+            "title": "Snippet",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chunk_id",
+          "title",
+          "breadcrumb",
+          "snippet",
+          "rank",
+          "similarity"
+        ],
+        "title": "VectorHit",
+        "type": "object"
+      },
       "VersionStatus": {
         "enum": [
           "processing",
@@ -2402,6 +3144,32 @@
           "by_day"
         ],
         "title": "VolumeMetrics",
+        "type": "object"
+      },
+      "WordOut": {
+        "description": "Uma palavra da pergunta e o que o Postgres faz com ela (radical ou descarte).",
+        "properties": {
+          "lexeme": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lexeme"
+          },
+          "word": {
+            "title": "Word",
+            "type": "string"
+          }
+        },
+        "required": [
+          "word",
+          "lexeme"
+        ],
+        "title": "WordOut",
         "type": "object"
       }
     }
@@ -2580,6 +3348,173 @@
         "summary": "List Prompts",
         "tags": [
           "admin"
+        ]
+      }
+    },
+    "/api/admin/rag/chunks/{chunk_id}": {
+      "get": {
+        "operationId": "getRagChunk",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "chunk_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Chunk Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "h2d_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "H2D Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChunkAnatomy"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Chunk",
+        "tags": [
+          "rag"
+        ]
+      }
+    },
+    "/api/admin/rag/overview": {
+      "get": {
+        "operationId": "getRagOverview",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "h2d_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "H2D Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OverviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Overview",
+        "tags": [
+          "rag"
+        ]
+      }
+    },
+    "/api/admin/rag/trace": {
+      "post": {
+        "operationId": "traceRag",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "h2d_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "H2D Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TraceIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TraceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Trace",
+        "tags": [
+          "rag"
         ]
       }
     },

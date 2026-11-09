@@ -73,6 +73,13 @@ class FastEmbedder:
         vectors = self._model.embed(texts, batch_size=BATCH_SIZE)
         return [[float(x) for x in vector] for vector in vectors]
 
+    def tokenize(self, text: str) -> list[tuple[str, int]]:
+        """Tokens e ids do tokenizador do próprio modelo (para a tela de rastreio do RAG)."""
+        if self._model is None:
+            self._model = self._load()
+        encoding = self._model.model.tokenizer.encode(text)
+        return list(zip(encoding.tokens, encoding.ids, strict=True))
+
 
 class FakeEmbedder:
     """Saco de palavras com hash: textos com palavras em comum ficam próximos. Só para testes."""
@@ -90,6 +97,14 @@ class FakeEmbedder:
             vector[int.from_bytes(digest[:4], "big") % EMBEDDING_DIM] += 1.0
         norm = math.sqrt(sum(x * x for x in vector)) or 1.0
         return [x / norm for x in vector]
+
+    @staticmethod
+    def tokenize(text: str) -> list[tuple[str, int]]:
+        """Uma palavra, um token. Só para testes."""
+        return [
+            (word, int.from_bytes(hashlib.sha256(word.encode()).digest()[:3], "big"))
+            for word in re.findall(r"\w+", text.lower())
+        ]
 
 
 @lru_cache

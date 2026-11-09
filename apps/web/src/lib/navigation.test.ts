@@ -32,6 +32,12 @@ describe("navItemsFor", () => {
     expect(navItemsFor("admin").map((item) => item.path)).toContain("/admin/ingestao");
   });
 
+  it("o fluxo do RAG é só do admin", () => {
+    expect(navItemsFor("admin").map((item) => item.path)).toContain("/admin/rag");
+    expect(navItemsFor("tech").map((item) => item.path)).not.toContain("/admin/rag");
+    expect(navItemsFor("user").map((item) => item.path)).not.toContain("/admin/rag");
+  });
+
   it.each(["user", "tech", "admin"] as const)("a tela inicial de %s está no menu", (role) => {
     expect(navItemsFor(role).map((item) => item.path)).toContain(homeFor(role));
   });
