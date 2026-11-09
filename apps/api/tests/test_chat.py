@@ -147,42 +147,64 @@ async def test_resposta_com_fonte_chega_em_sse_e_fica_registrada(
     assert answer["id"]
 
 
-@pytest.mark.parametrize(
-    ("texto", "social"),
-    [
-        ("oi", True),
-        ("Oi, tudo bem?", True),
-        ("bom dia", True),
-        ("muito obrigado!", True),
-        ("valeu, tchau", True),
-        ("quem é você?", True),
-        ("oi, a VPN não conecta", False),
-        ("bom dia, preciso de ajuda com a impressora", False),
-        ("como conecto na VPN", False),
-        ("", False),
-    ],
-)
-def test_detecta_conversa_social(texto, social):
-    from h2d.chat.service import is_smalltalk
+async def test_conversa_social_e_escrita_pelo_modelo(client, make_user, session, app, tmp_path):
+    await _base(session, tmp_path, VPN)
+    await _login(client, make_user)
+    conversation_id = await _conversation(client)
+    app.state.fake_llm._handler = lambda messages: (
+        "[CONVERSA] Tudo bem por aqui! Em que posso ajudar com a TI?"
+    )
 
-    assert is_smalltalk(texto) is social
+    events = await _say(client, conversation_id, "oi, tudo bem com você?")
+
+    assert _done(events)["action"] == "smalltalk"
+    assert _text(events).startswith("Tudo bem por aqui")
+    assert "[CONVERSA]" not in _text(events)
+    purposes = [c.purpose for c in await session.scalars(select(LlmCall))]
+    assert purposes == ["answer"]  # uma única chamada, sem texto fixo
 
 
-async def test_saudacao_e_respondida_pelo_modelo_sem_busca_e_sem_fontes(
+async def test_nao_encontrei_tambem_e_escrito_pelo_modelo(
     client, make_user, session, app, tmp_path
 ):
     await _base(session, tmp_path, VPN)
     await _login(client, make_user)
     conversation_id = await _conversation(client)
+    app.state.fake_llm._handler = lambda messages: (
+        "[NAO_ENCONTREI] Não achei isso nos manuais, mas posso abrir um chamado para a TI."
+    )
 
-    events = await _say(client, conversation_id, "oi, tudo bem?")
+    events = await _say(client, conversation_id, "como configuro o servidor de impressão")
 
-    assert _done(events)["action"] == "smalltalk"
-    assert next(data for name, data in events if name == "sources")["citations"] == []
-    assert "Não encontrei" not in _text(events)
-    calls = list(await session.scalars(select(LlmCall)))
-    assert [c.purpose for c in calls] == ["smalltalk"]
-    assert app.state.fake_llm.calls  # o modelo foi chamado
+    assert _done(events)["action"] == "not_found"
+    assert _text(events).startswith("Não achei isso nos manuais")
+
+
+async def test_tema_critico_escala_com_texto_do_modelo(client, make_user, session, app):
+    await _login(client, make_user)
+    conversation_id = await _conversation(client)
+    app.state.fake_llm._handler = lambda messages: "Sinto muito, já estou chamando a equipe de TI."
+
+    events = await _say(client, conversation_id, "acho que fui hackeado")
+
+    assert _done(events)["action"] == "escalate"
+    assert _text(events).startswith("Sinto muito")
+    assert [c.purpose for c in await session.scalars(select(LlmCall))][0] == "compose"
+
+
+async def test_sem_modelo_o_texto_de_reserva_aparece(client, make_user, session, app):
+    await _login(client, make_user)
+    conversation_id = await _conversation(client)
+
+    def broken(messages) -> str:
+        raise LLMError("fora do ar")
+
+    app.state.fake_llm._handler = broken
+
+    events = await _say(client, conversation_id, "quero falar com um humano")
+
+    assert _done(events)["action"] == "escalate"
+    assert "encaminhar" in _text(events)
 
 
 async def test_senha_digitada_nao_chega_ao_banco_nem_ao_modelo(
@@ -208,15 +230,17 @@ async def test_senha_digitada_nao_chega_ao_banco_nem_ao_modelo(
     assert user_message.redactions == 1
 
 
-async def test_sem_trecho_na_base_diz_que_nao_achou_sem_chamar_o_modelo(client, make_user, app):
+async def test_sem_trecho_na_base_o_modelo_diz_que_nao_achou(client, make_user, app):
     await _login(client, make_user)
     conversation_id = await _conversation(client)
+    app.state.fake_llm._handler = lambda m: "[NAO_ENCONTREI] Não achei isso nos manuais."
 
     events = await _say(client, conversation_id, "qual a política de férias?")
 
     assert _done(events)["action"] == "not_found"
-    assert "Não encontrei" in _text(events)
-    assert app.state.fake_llm.calls == []
+    assert _text(events).startswith("Não achei isso nos manuais")
+    assert len(app.state.fake_llm.calls) == 1
+    assert "<fontes>" in app.state.fake_llm.calls[0][-1].content  # sem trechos, bloco vazio
 
 
 @pytest.mark.parametrize(
@@ -231,13 +255,15 @@ async def test_modelo_que_recusa_ou_nao_cita_vira_nao_encontrei(
 ):
     await _base(session, tmp_path, VPN)
     await _login(client, make_user)
-    app.state.fake_llm._handler = lambda m: resposta_do_modelo
+    app.state.fake_llm._handler = lambda m: (
+        "Não achei isso nos manuais." if "Situação:" in m[0].content else resposta_do_modelo
+    )
     conversation_id = await _conversation(client)
 
     events = await _say(client, conversation_id, "quanto tempo dura a sessão da VPN")
 
     assert _done(events)["action"] == "not_found"
-    assert "Não encontrei" in _text(events)
+    assert _text(events) == "Não achei isso nos manuais."
     assert next(data for name, data in events if name == "sources")["citations"] == []
 
 
@@ -250,6 +276,8 @@ async def test_resposta_que_a_conferencia_reprova_nao_e_entregue(
     def handler(messages) -> str:
         if "SIM ou NAO" in messages[0].content:
             return "NAO"
+        if "Situação:" in messages[0].content:
+            return "Não consegui confirmar isso nos manuais."
         return "A VPN dura 30 dias [1]."
 
     app.state.fake_llm._handler = handler
@@ -340,7 +368,7 @@ async def test_tema_critico_ou_pedido_de_humano_escalona_sem_tentar_resolver(
 
     assert _done(events)["action"] == "escalate"
     assert _done(events)["conversation_status"] == "escalated"
-    assert app.state.fake_llm.calls == []
+    assert len(app.state.fake_llm.calls) == 1  # o modelo escreve a mensagem de encaminhamento
     # Conversa encaminhada não aceita mais mensagens do bot.
     again = await client.post(
         f"/api/chat/conversations/{conversation_id}/messages", json={"content": "e então?"}
