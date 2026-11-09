@@ -16,7 +16,12 @@ def get_engine() -> AsyncEngine:
     return create_async_engine(
         get_settings().database_url,
         pool_pre_ping=True,
-        connect_args={"timeout": 5},
+        connect_args={
+            "timeout": 5,
+            # Rede de segurança: transação parada por mais de 2 min (ex.: pedido preso esperando o
+            # modelo) é encerrada pelo banco, e os bloqueios dela são liberados.
+            "server_settings": {"idle_in_transaction_session_timeout": "120000"},
+        },
     )
 
 

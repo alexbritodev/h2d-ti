@@ -169,6 +169,14 @@ describe("RagFlowPage", () => {
     expect(await screen.findByText(/trechos de até 60 palavras/)).toBeTruthy();
   });
 
+  it("explica as etapas da consulta mesmo sem rastreio", async () => {
+    mockApi();
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: /^Fusão RRF/ }));
+    expect(await screen.findByText(/regra RRF/)).toBeTruthy();
+    expect(screen.getByText(/Faça uma pergunta de teste acima/)).toBeTruthy();
+  });
+
   it("não deixa rastrear com a pergunta vazia", async () => {
     mockApi();
     renderPage();
