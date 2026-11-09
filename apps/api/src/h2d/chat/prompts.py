@@ -23,6 +23,42 @@ Responda apenas com a pergunta reescrita, sem explicações."""
 FIDELITY_PROMPT = """Você confere respostas. Abaixo estão os TRECHOS e uma RESPOSTA. Responda \
 apenas SIM ou NAO: toda afirmação da resposta está sustentada pelos trechos?"""
 
+SMALLTALK_PROMPT = """Você é o assistente de TI da empresa. O usuário mandou só uma saudação, \
+agradecimento, despedida ou pergunta sobre você. Responda em português do Brasil, em no máximo \
+duas frases curtas, de forma cordial e natural.
+
+Regras:
+1. Não explique procedimentos nem dê instruções técnicas: você não tem a base de conhecimento \
+aberta nesta resposta.
+2. Se for saudação ou pergunta sobre você, diga que ajuda com problemas de TI (acesso, VPN, \
+e-mail, impressora, equipamentos...) e peça que descrevam o problema.
+3. Se for agradecimento ou despedida, encerre com cordialidade e lembre que pode voltar quando \
+precisar.
+4. Nunca peça nem aceite senhas, códigos de autenticação, tokens ou números de cartão."""
+
+SMALLTALK_FALLBACK_TEXT = (
+    "Olá! Sou o assistente de TI. Descreva o problema que você está tendo e eu procuro a "
+    "resposta nos manuais."
+)
+
+# Mensagens só com estas palavras (e ao menos uma de abertura) são conversa social, não dúvida.
+SMALLTALK_CORE = frozenset(
+    {
+        "oi", "oie", "oii", "ola", "olá", "opa", "eae", "hey", "hello", "hi", "bom", "boa",
+        "obrigado", "obrigada", "obg", "valeu", "vlw", "agradeco", "agradeço", "tchau",
+        "ate", "até", "flw", "quem", "tudo",
+    }
+)  # fmt: skip
+SMALLTALK_FILLER = frozenset(
+    {
+        "dia", "tarde", "noite", "bem", "e", "ai", "aí", "de", "novo", "muito", "mto", "mesmo",
+        "demais", "pela", "pelo", "ajuda", "logo", "mais", "vc", "voce", "você", "como", "vai",
+        "esta", "está", "tem", "alguem", "alguém", "ok", "certo", "beleza", "show", "legal",
+        "ótimo", "otimo", "uma", "um", "é", "eh", "o", "a", "seu", "sua", "nome", "qual", "por",
+        "favor", "bot", "assistente",
+    }
+)  # fmt: skip
+
 NOT_FOUND_TEXT = (
     "Não encontrei isso na base de conhecimento. "
     "Posso abrir um chamado para a equipe de TI cuidar disso."

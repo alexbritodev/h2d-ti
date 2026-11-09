@@ -31,7 +31,7 @@ from h2d.models import (
     User,
 )
 
-Action = Literal["answered", "not_found", "escalate", "unavailable", "limit"]
+Action = Literal["answered", "not_found", "escalate", "unavailable", "limit", "smalltalk"]
 HISTORY_MESSAGES = 6
 SEARCH_LIMIT = 5
 
@@ -168,6 +168,16 @@ def _matches(text: str, keywords: tuple[str, ...]) -> bool:
     return any(keyword in lowered for keyword in keywords)
 
 
+def is_smalltalk(text: str) -> bool:
+    """Saudação, agradecimento ou despedida pura. Palavra fora do vocabulário vira dúvida."""
+    words = re.findall(r"[\wÀ-ÿ]+", text.lower())
+    if not words or len(words) > 8:
+        return False
+    if not all(w in prompts.SMALLTALK_CORE or w in prompts.SMALLTALK_FILLER for w in words):
+        return False
+    return any(w in prompts.SMALLTALK_CORE for w in words)
+
+
 def can_see_it(user: User) -> bool:
     return user.role in (Role.TECH, Role.ADMIN)
 
@@ -264,6 +274,28 @@ async def handle_user_message(
     # Quanto ainda cabe no teto diário do modelo (soma de todos os usuários).
     if await llm_calls_today(session) + 2 > settings.llm_daily_request_limit:
         return await reply("limit", prompts.LIMIT_TEXT, reason="daily_limit")
+
+    # Conversa social: o modelo responde de forma natural, sem busca na base e sem fontes.
+    if is_smalltalk(masked.text):
+        try:
+            chat = await call_llm(
+                session,
+                llm,
+                "smalltalk",
+                [
+                    ChatMessage("system", prompts.SMALLTALK_PROMPT),
+                    *_history(previous),
+                    ChatMessage("user", masked.text),
+                ],
+                user=user,
+                conversation=conversation,
+                temperature=0.5,
+                max_tokens=150,
+            )
+            greeting = chat.text.strip() or prompts.SMALLTALK_FALLBACK_TEXT
+        except LLMError:
+            greeting = prompts.SMALLTALK_FALLBACK_TEXT
+        return await reply("smalltalk", greeting, reason="smalltalk")
 
     version = await get_prompt_version(session)
 
