@@ -43,6 +43,8 @@ def default_llm_handler(messages) -> str:
         return messages[-1].content
     if "SIM ou NAO" in system:
         return "SIM"
+    if "Situação:" in system:
+        return "Resposta escrita pelo modelo."
     return "Resposta de teste com base na fonte [1]."
 
 

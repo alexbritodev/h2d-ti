@@ -13,11 +13,11 @@ export function Kpi({ value, label }: { value: ReactNode; label: string }) {
 }
 
 export function KpiRow({ children }: { children: ReactNode }) {
-  return <div className="mt-4 flex flex-wrap gap-2">{children}</div>;
+  return <div className="mt-3 flex flex-wrap gap-2">{children}</div>;
 }
 
 export function SectionLabel({ children }: { children: ReactNode }) {
-  return <h3 className="mb-2 text-xs font-medium tracking-wide text-muted uppercase">{children}</h3>;
+  return <h3 className="mb-1.5 text-xs font-medium tracking-wide text-muted uppercase">{children}</h3>;
 }
 
 /** Texto que o sistema montou (pergunta mascarada, consulta, prompt), em fonte de código. */

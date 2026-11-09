@@ -168,16 +168,6 @@ def _matches(text: str, keywords: tuple[str, ...]) -> bool:
     return any(keyword in lowered for keyword in keywords)
 
 
-def is_smalltalk(text: str) -> bool:
-    """Saudação, agradecimento ou despedida pura. Palavra fora do vocabulário vira dúvida."""
-    words = re.findall(r"[\wÀ-ÿ]+", text.lower())
-    if not words or len(words) > 8:
-        return False
-    if not all(w in prompts.SMALLTALK_CORE or w in prompts.SMALLTALK_FILLER for w in words):
-        return False
-    return any(w in prompts.SMALLTALK_CORE for w in words)
-
-
 def can_see_it(user: User) -> bool:
     return user.role in (Role.TECH, Role.ADMIN)
 
@@ -265,37 +255,49 @@ async def handle_user_message(
         await session.flush()
         return TurnResult(action, message, citations or [], reason)
 
-    # Tema crítico ou pedido de humano: não tenta resolver.
-    if _matches(masked.text, prompts.CRITICAL_KEYWORDS):
-        return await reply("escalate", prompts.CRITICAL_TEXT, reason="critical")
-    if _matches(masked.text, prompts.HUMAN_KEYWORDS):
-        return await reply("escalate", prompts.HUMAN_TEXT, reason="human_requested")
-
-    # Quanto ainda cabe no teto diário do modelo (soma de todos os usuários).
-    if await llm_calls_today(session) + 2 > settings.llm_daily_request_limit:
-        return await reply("limit", prompts.LIMIT_TEXT, reason="daily_limit")
-
-    # Conversa social: o modelo responde de forma natural, sem busca na base e sem fontes.
-    if is_smalltalk(masked.text):
+    async def compose(
+        situation: str,
+        fallback: str,
+        reason: str,
+        action: Action,
+        *,
+        prompt_version: PromptVersion | None = None,
+    ) -> TurnResult:
+        """O modelo escreve a resposta. O texto fixo só entra se ele não puder ser chamado."""
         try:
-            chat = await call_llm(
+            written = await call_llm(
                 session,
                 llm,
-                "smalltalk",
+                "compose",
                 [
-                    ChatMessage("system", prompts.SMALLTALK_PROMPT),
+                    ChatMessage("system", prompts.COMPOSE_PROMPT.format(situation=situation)),
                     *_history(previous),
                     ChatMessage("user", masked.text),
                 ],
                 user=user,
                 conversation=conversation,
+                prompt_version=prompt_version,
                 temperature=0.5,
-                max_tokens=150,
+                max_tokens=200,
             )
-            greeting = chat.text.strip() or prompts.SMALLTALK_FALLBACK_TEXT
+            body = written.text.strip() or fallback
         except LLMError:
-            greeting = prompts.SMALLTALK_FALLBACK_TEXT
-        return await reply("smalltalk", greeting, reason="smalltalk")
+            body = fallback
+        return await reply(action, body, prompt_version=prompt_version, reason=reason)
+
+    # Tema crítico ou pedido de humano: não tenta resolver.
+    if _matches(masked.text, prompts.CRITICAL_KEYWORDS):
+        return await compose(
+            prompts.SITUATION_CRITICAL, prompts.CRITICAL_TEXT, "critical", "escalate"
+        )
+    if _matches(masked.text, prompts.HUMAN_KEYWORDS):
+        return await compose(
+            prompts.SITUATION_HUMAN, prompts.HUMAN_TEXT, "human_requested", "escalate"
+        )
+
+    # Quanto ainda cabe no teto diário do modelo (soma de todos os usuários).
+    if await llm_calls_today(session) + 2 > settings.llm_daily_request_limit:
+        return await reply("limit", prompts.LIMIT_TEXT, reason="daily_limit")
 
     version = await get_prompt_version(session)
 
@@ -335,9 +337,6 @@ async def handle_user_message(
             "fontes": sorted({hit.document_title for hit in hits})[:5],
         },
     )
-    if not hits:
-        return await reply("not_found", prompts.NOT_FOUND_TEXT, reason="no_hits")
-
     try:
         answered = await call_llm(
             session,
@@ -359,15 +358,38 @@ async def handle_user_message(
         )
 
     answer = answered.text.strip()
+    tag = re.match(r"\s*\[(NAO_ENCONTREI|CONVERSA)\]\s*", answer.upper().replace("Ã", "A"))
+    if tag:
+        # O próprio modelo escreveu a resposta de conversa ou de "não encontrei".
+        body = answer[tag.end() :].strip()
+        action: Action = "smalltalk" if tag.group(1) == "CONVERSA" else "not_found"
+        reason = "smalltalk" if action == "smalltalk" else "model_declined"
+        if body:
+            return await reply(action, body, prompt_version=version, reason=reason)
+        return await compose(
+            prompts.SITUATION_NOT_FOUND,
+            prompts.NOT_FOUND_TEXT,
+            reason,
+            "not_found",
+            prompt_version=version,
+        )
     if not answer or "NAO_ENCONTREI" in answer.upper().replace(" ", "_"):
-        return await reply(
-            "not_found", prompts.NOT_FOUND_TEXT, prompt_version=version, reason="model_declined"
+        return await compose(
+            prompts.SITUATION_NOT_FOUND,
+            prompts.NOT_FOUND_TEXT,
+            "model_declined",
+            "not_found",
+            prompt_version=version,
         )
     citations = _cited(answer, hits)
     if not citations:
         # Resposta sem fonte não vale: o assistente só afirma o que consegue citar.
-        return await reply(
-            "not_found", prompts.NOT_FOUND_TEXT, prompt_version=version, reason="no_citation"
+        return await compose(
+            prompts.SITUATION_NOT_FOUND,
+            prompts.NOT_FOUND_TEXT,
+            "no_citation",
+            "not_found",
+            prompt_version=version,
         )
 
     try:
@@ -386,8 +408,12 @@ async def handle_user_message(
             max_tokens=5,
         )
         if verdict.text.strip().upper().startswith("N"):
-            return await reply(
-                "not_found", prompts.NOT_FOUND_TEXT, prompt_version=version, reason="unfaithful"
+            return await compose(
+                prompts.SITUATION_NOT_FOUND,
+                prompts.NOT_FOUND_TEXT,
+                "unfaithful",
+                "not_found",
+                prompt_version=version,
             )
     except LLMError:
         pass  # sem a conferência, a resposta já citada segue; a falha fica em llm_calls

@@ -163,7 +163,7 @@ describe("RagFlowPage", () => {
     mockApi();
     renderPage();
 
-    expect(await screen.findByText("documentos ativos")).toBeTruthy();
+    expect(await screen.findByText("documentos")).toBeTruthy();
     expect(await screen.findByText("12 / 45")).toBeTruthy();
     await userEvent.click(screen.getByRole("button", { name: /^Trechos/ }));
     expect(await screen.findByText(/trechos de até 60 palavras/)).toBeTruthy();

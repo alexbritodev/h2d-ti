@@ -21,10 +21,12 @@ type Token = { text: string; id: number };
 const isSpecial = (token: Token) => /^<.*>$/.test(token.text);
 
 /** Os tokens do modelo, com os que passam da janela de leitura esmaecidos. */
+const MAX_CHIPS = 48;
+
 export function TokenChips({ tokens, limit }: { tokens: Token[]; limit: number }) {
   return (
     <div className="flex flex-wrap gap-1">
-      {tokens.map((token, index) => {
+      {tokens.slice(0, MAX_CHIPS).map((token, index) => {
         const outside = index >= limit;
         const shown = token.text.replace(/^▁/, "") || "▁";
         return (
@@ -38,6 +40,11 @@ export function TokenChips({ tokens, limit }: { tokens: Token[]; limit: number }
           </Chip>
         );
       })}
+      {tokens.length > MAX_CHIPS && (
+        <Chip tone="dim" title="Omitidos para caber na tela">
+          +{tokens.length - MAX_CHIPS} tokens
+        </Chip>
+      )}
     </div>
   );
 }
@@ -65,7 +72,7 @@ export function MaskingStage({ trace }: { trace: RagTrace }) {
   const { masking } = trace;
   return (
     <div>
-      <p className="mb-3 text-sm text-muted">
+      <p className="mb-2 text-xs text-muted">
         Senha, CPF, cartão e token são escondidos antes de qualquer gravação, busca ou envio ao modelo.
         Esta tela também nunca devolve o texto original.
       </p>
@@ -145,7 +152,7 @@ export function EmbeddingStage({ trace }: { trace: RagTrace }) {
   const { embedding } = trace;
   return (
     <div>
-      <p className="mb-3 text-sm text-muted">
+      <p className="mb-2 text-xs text-muted">
         A pergunta vira uma lista de {embedding.dimensions} números. Perguntas de sentido parecido ficam
         com vetores parecidos, mesmo sem palavras em comum.
       </p>
@@ -184,7 +191,7 @@ function ResultRow({ title, breadcrumb, rank, value, width, barClass, onOpen }: 
         type="button"
         onClick={onOpen}
         title={breadcrumb}
-        className="w-full cursor-pointer rounded-lg px-2 py-1.5 text-left hover:bg-surface-2"
+        className="w-full cursor-pointer rounded-lg px-2 py-1 text-left hover:bg-surface-2"
       >
         <div className="flex items-baseline justify-between gap-3 text-sm">
           <span className="min-w-0 truncate">
@@ -200,10 +207,10 @@ function ResultRow({ title, breadcrumb, rank, value, width, barClass, onOpen }: 
 }
 
 export function SearchStage({ trace, onOpen }: { trace: RagTrace; onOpen: (id: string) => void }) {
-  const topLexical = Math.max(...trace.lexical.map((hit) => hit.score), 1e-9);
+  const topLexical = Math.max(...trace.lexical.slice(0, 6).map((hit) => hit.score), 1e-9);
   return (
     <div>
-      <p className="mb-3 text-sm text-muted">
+      <p className="mb-2 text-xs text-muted">
         Duas buscas independentes sobre até {trace.candidates} candidatos cada. Um trecho pode aparecer só
         em uma delas. Clique num trecho para ver como ele foi guardado.
       </p>
@@ -212,7 +219,7 @@ export function SearchStage({ trace, onOpen }: { trace: RagTrace; onOpen: (id: s
           <SectionLabel>Vetorial · similaridade de cosseno</SectionLabel>
           {trace.vector.length ? (
             <ul className="space-y-0.5">
-              {trace.vector.map((hit) => (
+              {trace.vector.slice(0, 6).map((hit) => (
                 <ResultRow
                   key={hit.chunk_id}
                   title={hit.title}
@@ -233,7 +240,7 @@ export function SearchStage({ trace, onOpen }: { trace: RagTrace; onOpen: (id: s
           <SectionLabel>Por palavras · ts_rank_cd</SectionLabel>
           {trace.lexical.length ? (
             <ul className="space-y-0.5">
-              {trace.lexical.map((hit) => (
+              {trace.lexical.slice(0, 6).map((hit) => (
                 <ResultRow
                   key={hit.chunk_id}
                   title={hit.title}
@@ -256,22 +263,22 @@ export function SearchStage({ trace, onOpen }: { trace: RagTrace; onOpen: (id: s
 }
 
 export function FusionStage({ trace, onOpen }: { trace: RagTrace; onOpen: (id: string) => void }) {
-  const peak = Math.max(...trace.fusion.map((row) => row.score), 1e-9);
+  const peak = Math.max(...trace.fusion.slice(0, 8).map((row) => row.score), 1e-9);
   return (
     <div>
-      <p className="mb-3 text-sm text-muted">
+      <p className="mb-2 text-xs text-muted">
         Cada lista dá 1 / ({trace.rrf_k} + posição) ao trecho, e as notas se somam. Quem aparece nas duas
         sobe. Os {trace.search_limit} primeiros vão ao prompt.
       </p>
       {trace.fusion.length ? (
         <ul className="space-y-0.5">
-          {trace.fusion.map((row, index) => (
+          {trace.fusion.slice(0, 8).map((row, index) => (
             <li key={row.chunk_id}>
               <button
                 type="button"
                 onClick={() => onOpen(row.chunk_id)}
                 title={row.snippet}
-                className="w-full cursor-pointer rounded-lg px-2 py-1.5 text-left hover:bg-surface-2"
+                className="w-full cursor-pointer rounded-lg px-2 py-1 text-left hover:bg-surface-2"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
                   <span className="min-w-0 truncate">
@@ -321,15 +328,20 @@ export function PromptStage({ trace }: { trace: RagTrace }) {
   const { prompt } = trace;
   return (
     <div>
-      <p className="mb-3 text-sm text-muted">
+      <p className="mb-2 text-xs text-muted">
         É este texto que seguiria ao modelo: as regras, as últimas {prompt.history_messages} mensagens da
         conversa, os trechos como dados numerados e a pergunta.
       </p>
       <SectionLabel>Fontes e pergunta</SectionLabel>
       {prompt.sources_block ? (
-        <CodeBox className="max-h-72 overflow-y-auto">
-          {`${prompt.sources_block}\n\nPergunta: ${prompt.question}`}
-        </CodeBox>
+        <details>
+          <summary className="cursor-pointer text-xs text-muted hover:text-text">
+            Ver o prompt completo
+          </summary>
+          <CodeBox className="mt-1 max-h-72 overflow-y-auto">
+            {`${prompt.sources_block}\n\nPergunta: ${prompt.question}`}
+          </CodeBox>
+        </details>
       ) : (
         <p className="rounded-lg border border-dashed border-border p-3 text-sm text-muted">
           Sem trechos, o chat nem chama o modelo: responde que não encontrou e oferece abrir chamado.
@@ -370,7 +382,7 @@ export function GenerationStage({ trace }: { trace: RagTrace }) {
   const used = g.daily_limit ? (g.calls_today / g.daily_limit) * 100 : 100;
   return (
     <div>
-      <p className="mb-3 text-sm text-muted">
+      <p className="mb-2 text-xs text-muted">
         Rastrear não chama o modelo, então não gasta o limite diário. Abaixo está a configuração que o
         chat usaria agora.
       </p>
