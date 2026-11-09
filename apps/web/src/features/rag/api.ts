@@ -34,8 +34,13 @@ export async function traceQuestion(question: string): Promise<RagTrace> {
   const { data, response, error } = await api.POST("/api/admin/rag/trace", { body: { question } });
   if (!data) {
     const detail = (error as { detail?: unknown } | undefined)?.detail;
+    const unreachable = [502, 503, 504].includes(response.status);
     throw new Error(
-      typeof detail === "string" ? detail : `Não foi possível rastrear a pergunta (${response.status}).`,
+      typeof detail === "string"
+        ? detail
+        : unreachable
+          ? `O servidor não respondeu (${response.status}). Tente de novo em alguns segundos; se persistir, veja os logs do container h2d-api.`
+          : `Não foi possível rastrear a pergunta (${response.status}).`,
     );
   }
   return data;

@@ -89,6 +89,24 @@ const EXAMPLES = [
   "Minha senha é Abc12345 e a VPN não conecta",
 ];
 
+/** O que cada etapa da consulta faz. Aparece quando ainda não há rastreio (ou ele falhou). */
+const QUERY_INFO: Partial<Record<StepKey, string>> = {
+  masking:
+    "Senha, CPF, cartão e token são escondidos antes de qualquer gravação, busca ou envio ao modelo.",
+  tokenization:
+    "A pergunta é quebrada de dois jeitos: em tokens do modelo de embeddings (pedaços de palavra, que viram números) e em radicais do Postgres (conectar e conecta viram conect), descartando palavras vazias.",
+  embedding:
+    "A pergunta vira uma lista de 384 números. Perguntas de sentido parecido ficam com vetores parecidos, mesmo sem palavras em comum.",
+  search:
+    "Duas buscas independentes: por significado (vetores, distância de cosseno) e por palavras (radicais). Cada uma devolve até 50 candidatos.",
+  fusion:
+    "As duas listas são combinadas pela regra RRF: cada trecho ganha 1 / (60 + posição) em cada lista, e as notas se somam. Os 5 melhores seguem.",
+  prompt:
+    "Os 5 trechos entram como dados numerados, junto com as regras do sistema, as últimas mensagens da conversa e a pergunta.",
+  generation:
+    "O modelo (OpenRouter) escreve a resposta citando os trechos, ou diz que não achou, ou conversa quando a mensagem é social.",
+};
+
 function StepNode({
   step,
   active,
@@ -258,9 +276,12 @@ export function RagFlowPage() {
     if (selected === "check") return <CheckStage />;
     if (!trace) {
       return (
-        <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted">
-          Faça uma pergunta de teste acima para ver esta etapa com dados reais.
-        </p>
+        <div className="space-y-3">
+          <p className="text-sm">{QUERY_INFO[selected]}</p>
+          <p className="rounded-lg border border-dashed border-border px-3 py-2 text-xs text-muted">
+            Faça uma pergunta de teste acima para ver esta etapa com dados reais.
+          </p>
+        </div>
       );
     }
     switch (selected) {

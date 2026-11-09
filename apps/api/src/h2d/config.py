@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     openrouter_fallback_models: str = (
         "google/gemma-4-26b-a4b-it:free,nvidia/nemotron-3-ultra-550b-a55b:free"
     )
-    llm_timeout_seconds: float = Field(default=60.0, gt=0)
+    llm_timeout_seconds: float = Field(default=30.0, gt=0)
     # Teto de chamadas ao modelo por dia, somando todos os usuários. Modelo gratuito: 50 por dia
     # (1000 com US$ 10 em créditos), então o padrão deixa folga.
     llm_daily_request_limit: int = Field(default=45, ge=0)

@@ -7,7 +7,9 @@ from contextlib import asynccontextmanager
 from fastapi import APIRouter, FastAPI
 
 from h2d import __version__
+from h2d.chat.service import get_prompt_version
 from h2d.config import get_settings
+from h2d.db import get_sessionmaker
 from h2d.escritorio import router as escritorio
 from h2d.kb.embeddings import embed_async, get_embedder
 from h2d.routers import admin, auth, chat, health, hooks, kb, metrics, rag, tickets, users
@@ -22,8 +24,23 @@ async def _warm_up_embedder() -> None:
         log.warning("Não foi possível aquecer o modelo de embeddings", exc_info=True)
 
 
+async def _sync_prompt_version() -> None:
+    """Registra a versão do prompt na subida, fora de qualquer pedido.
+
+    Se isso rodasse no primeiro chat após um deploy, o UPDATE da versão ativa seguraria a
+    transação aberta durante a chamada ao modelo e travaria os pedidos seguintes.
+    """
+    try:
+        async with get_sessionmaker()() as session:
+            await get_prompt_version(session)
+            await session.commit()
+    except Exception:  # o chat também cria a versão se faltar; aqui é só para não travar
+        log.warning("Não foi possível registrar a versão do prompt", exc_info=True)
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    await _sync_prompt_version()
     # Em produção o modelo carrega em segundo plano na subida: a primeira busca não espera.
     task = (
         asyncio.create_task(_warm_up_embedder())
