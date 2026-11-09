@@ -21,6 +21,7 @@ import { DashboardPage } from "@/features/dashboard/DashboardPage";
 import { escritorioConfigQuery } from "@/features/escritorio/api";
 import { EscritorioPage } from "@/features/escritorio/EscritorioPage";
 import { KnowledgePage } from "@/features/kb/KnowledgePage";
+import { RagFlowPage } from "@/features/rag/RagFlowPage";
 import { MyTicketsPage } from "@/features/tickets/MyTicketsPage";
 import { QueuePage } from "@/features/tickets/QueuePage";
 import type { User } from "@/lib/api/client";
@@ -35,6 +36,7 @@ const PAGES: Record<string, () => ReactNode> = {
   "/chamados": QueuePage,
   "/dashboard": DashboardPage,
   "/admin/ingestao": DocumentsPage,
+  "/admin/rag": RagFlowPage,
   "/admin/cadastros": RegistersPage,
   "/admin/auditoria": AuditPage,
   "/admin/configuracoes": SettingsPage,

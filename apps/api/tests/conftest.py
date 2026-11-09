@@ -32,6 +32,7 @@ from h2d.models import Role, User  # noqa: E402
 from h2d.routers.chat import get_embedder_dep as get_chat_embedder_dep  # noqa: E402
 from h2d.routers.chat import get_llm_dep  # noqa: E402
 from h2d.routers.kb import get_embedder_dep  # noqa: E402
+from h2d.routers.rag import get_embedder_dep as get_rag_embedder_dep  # noqa: E402
 from h2d.security import hash_password  # noqa: E402
 
 
@@ -91,6 +92,7 @@ def app(session: AsyncSession):
     # Nos testes não se baixa nem se roda o modelo de verdade.
     application.dependency_overrides[get_embedder_dep] = FakeEmbedder
     application.dependency_overrides[get_chat_embedder_dep] = FakeEmbedder
+    application.dependency_overrides[get_rag_embedder_dep] = FakeEmbedder
     application.dependency_overrides[get_llm_dep] = lambda: application.state.fake_llm
     application.state.fake_llm = FakeLLM(default_llm_handler)
     return application

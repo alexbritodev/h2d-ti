@@ -55,6 +55,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/rag/chunks/{chunk_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Chunk */
+        get: operations["getRagChunk"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/rag/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Overview */
+        get: operations["getRagOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/rag/trace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Trace */
+        post: operations["traceRag"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/settings": {
         parameters: {
             query?: never;
@@ -958,6 +1009,42 @@ export interface components {
             /** Sla Policy */
             sla_policy: string | null;
         };
+        /** ChunkAnatomy */
+        ChunkAnatomy: {
+            /** Breadcrumb */
+            breadcrumb: string;
+            /**
+             * Chunk Id
+             * Format: uuid
+             */
+            chunk_id: string;
+            /** Content */
+            content: string;
+            /**
+             * Document Id
+             * Format: uuid
+             */
+            document_id: string;
+            embedding: components["schemas"]["EmbeddingStage"];
+            /** Lexemes */
+            lexemes: components["schemas"]["LexemeOut"][];
+            /** Model Max Tokens */
+            model_max_tokens: number;
+            /** Position */
+            position: number;
+            /** Title */
+            title: string;
+            /** Token Count */
+            token_count: number;
+            /** Tokens */
+            tokens: components["schemas"]["TokenOut"][];
+            /** Truncated */
+            truncated: boolean;
+            /** Visibility */
+            visibility: string;
+            /** Words */
+            words: number;
+        };
         /** Citation */
         Citation: {
             /** Breadcrumb */
@@ -1104,6 +1191,21 @@ export interface components {
             title: string;
             visibility: components["schemas"]["Visibility"];
         };
+        /** EmbeddingStage */
+        EmbeddingStage: {
+            /** Dimensions */
+            dimensions: number;
+            /** Maximum */
+            maximum: number;
+            /** Minimum */
+            minimum: number;
+            /** Model */
+            model: string;
+            /** Norm */
+            norm: number;
+            /** Values */
+            values: number[];
+        };
         /** EscritorioConfigOut */
         EscritorioConfigOut: {
             /** Demo */
@@ -1138,6 +1240,49 @@ export interface components {
         FeedbackIn: {
             /** Value */
             value: number;
+        };
+        /** FusionRow */
+        FusionRow: {
+            /** Breadcrumb */
+            breadcrumb: string;
+            /**
+             * Chunk Id
+             * Format: uuid
+             */
+            chunk_id: string;
+            /** Lexical Part */
+            lexical_part: number;
+            /** Lexical Rank */
+            lexical_rank: number | null;
+            /** Score */
+            score: number;
+            /** Selected */
+            selected: boolean;
+            /** Snippet */
+            snippet: string;
+            /** Title */
+            title: string;
+            /** Vector Part */
+            vector_part: number;
+            /** Vector Rank */
+            vector_rank: number | null;
+        };
+        /** GenerationStage */
+        GenerationStage: {
+            /** Calls Per Turn */
+            calls_per_turn: string;
+            /** Calls Today */
+            calls_today: number;
+            /** Daily Limit */
+            daily_limit: number;
+            /** Fallbacks */
+            fallbacks: string[];
+            /** Max Tokens */
+            max_tokens: number;
+            /** Model */
+            model: string;
+            /** Temperature */
+            temperature: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1222,6 +1367,31 @@ export interface components {
          * @enum {string}
          */
         JobState: "queued" | "running" | "succeeded" | "failed";
+        /** LexemeOut */
+        LexemeOut: {
+            /** Count */
+            count: number;
+            /** Lexeme */
+            lexeme: string;
+        };
+        /** LexicalHit */
+        LexicalHit: {
+            /** Breadcrumb */
+            breadcrumb: string;
+            /**
+             * Chunk Id
+             * Format: uuid
+             */
+            chunk_id: string;
+            /** Rank */
+            rank: number;
+            /** Score */
+            score: number;
+            /** Snippet */
+            snippet: string;
+            /** Title */
+            title: string;
+        };
         /** LibraryItem */
         LibraryItem: {
             /** Category */
@@ -1243,6 +1413,17 @@ export interface components {
             email: string;
             /** Password */
             password: string;
+        };
+        /** MaskingStage */
+        MaskingStage: {
+            /** Kinds */
+            kinds: string[];
+            /** Masked Text */
+            masked_text: string;
+            /** Original Chars */
+            original_chars: number;
+            /** Redactions */
+            redactions: number;
         };
         /** MessageOut */
         MessageOut: {
@@ -1281,10 +1462,51 @@ export interface components {
             sla: components["schemas"]["SlaMetrics"];
             volume: components["schemas"]["VolumeMetrics"];
         };
+        /** OverviewOut */
+        OverviewOut: {
+            /** Avg Words */
+            avg_words: number;
+            /** Chunks */
+            chunks: number;
+            /** Documents */
+            documents: number;
+            /** Max Words */
+            max_words: number;
+            params: components["schemas"]["PipelineParams"];
+            /** Public Chunks */
+            public_chunks: number;
+            /** Restricted Chunks */
+            restricted_chunks: number;
+        };
         /** PasswordReset */
         PasswordReset: {
             /** Password */
             password: string;
+        };
+        /** PipelineParams */
+        PipelineParams: {
+            /** Answer Model */
+            answer_model: string;
+            /** Calls Today */
+            calls_today: number;
+            /** Candidates */
+            candidates: number;
+            /** Chunk Max Words */
+            chunk_max_words: number;
+            /** Daily Limit */
+            daily_limit: number;
+            /** Embedding Dimensions */
+            embedding_dimensions: number;
+            /** Embedding Model */
+            embedding_model: string;
+            /** History Messages */
+            history_messages: number;
+            /** Model Max Tokens */
+            model_max_tokens: number;
+            /** Rrf K */
+            rrf_k: number;
+            /** Search Limit */
+            search_limit: number;
         };
         /**
          * Priority
@@ -1310,6 +1532,21 @@ export interface components {
             /** Version */
             version: number;
         };
+        /** PromptStage */
+        PromptStage: {
+            /** Approx Input Tokens */
+            approx_input_tokens: number;
+            /** History Messages */
+            history_messages: number;
+            /** Question */
+            question: string;
+            /** Sources */
+            sources: components["schemas"]["SelectedChunk"][];
+            /** Sources Block */
+            sources_block: string;
+            /** System Prompt */
+            system_prompt: string;
+        };
         /** ResolveIn */
         ResolveIn: {
             /** Solution */
@@ -1326,6 +1563,24 @@ export interface components {
             breadcrumb: string;
             /** Content */
             content: string;
+        };
+        /** SelectedChunk */
+        SelectedChunk: {
+            /** Breadcrumb */
+            breadcrumb: string;
+            /**
+             * Chunk Id
+             * Format: uuid
+             */
+            chunk_id: string;
+            /** Position */
+            position: number;
+            /** Title */
+            title: string;
+            /** Token Count */
+            token_count: number;
+            /** Truncated */
+            truncated: boolean;
         };
         /** SendMessage */
         SendMessage: {
@@ -1501,6 +1756,68 @@ export interface components {
             /** Technician Id */
             technician_id?: string | null;
         };
+        /** Timing */
+        Timing: {
+            /** Label */
+            label: string;
+            /** Ms */
+            ms: number;
+            /** Stage */
+            stage: string;
+        };
+        /** TokenOut */
+        TokenOut: {
+            /** Id */
+            id: number;
+            /** Text */
+            text: string;
+        };
+        /** TokenizationStage */
+        TokenizationStage: {
+            /** Model Max Tokens */
+            model_max_tokens: number;
+            /** Model Token Count */
+            model_token_count: number;
+            /** Model Tokens */
+            model_tokens: components["schemas"]["TokenOut"][];
+            /** Tsquery Parsed */
+            tsquery_parsed: string;
+            /** Tsquery Raw */
+            tsquery_raw: string;
+            /** Words */
+            words: components["schemas"]["WordOut"][];
+        };
+        /** TraceIn */
+        TraceIn: {
+            /** Question */
+            question: string;
+        };
+        /** TraceOut */
+        TraceOut: {
+            /** Candidates */
+            candidates: number;
+            embedding: components["schemas"]["EmbeddingStage"];
+            /** Fusion */
+            fusion: components["schemas"]["FusionRow"][];
+            generation: components["schemas"]["GenerationStage"];
+            /** Lexical */
+            lexical: components["schemas"]["LexicalHit"][];
+            masking: components["schemas"]["MaskingStage"];
+            prompt: components["schemas"]["PromptStage"];
+            /** Question */
+            question: string;
+            /** Rrf K */
+            rrf_k: number;
+            /** Search Limit */
+            search_limit: number;
+            /** Timings */
+            timings: components["schemas"]["Timing"][];
+            tokenization: components["schemas"]["TokenizationStage"];
+            /** Total Ms */
+            total_ms: number;
+            /** Vector */
+            vector: components["schemas"]["VectorHit"][];
+        };
         /** TriageSettings */
         TriageSettings: {
             /** Confidence Threshold */
@@ -1632,6 +1949,24 @@ export interface components {
             /** Error Type */
             type: string;
         };
+        /** VectorHit */
+        VectorHit: {
+            /** Breadcrumb */
+            breadcrumb: string;
+            /**
+             * Chunk Id
+             * Format: uuid
+             */
+            chunk_id: string;
+            /** Rank */
+            rank: number;
+            /** Similarity */
+            similarity: number;
+            /** Snippet */
+            snippet: string;
+            /** Title */
+            title: string;
+        };
         /**
          * VersionStatus
          * @enum {string}
@@ -1650,6 +1985,16 @@ export interface components {
             conversations: number;
             /** Tickets */
             tickets: number;
+        };
+        /**
+         * WordOut
+         * @description Uma palavra da pergunta e o que o Postgres faz com ela (radical ou descarte).
+         */
+        WordOut: {
+            /** Lexeme */
+            lexeme: string | null;
+            /** Word */
+            word: string;
         };
     };
     responses: never;
@@ -1742,6 +2087,105 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PromptOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getRagChunk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                chunk_id: string;
+            };
+            cookie?: {
+                h2d_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChunkAnatomy"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getRagOverview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                h2d_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OverviewOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    traceRag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                h2d_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TraceIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TraceOut"];
                 };
             };
             /** @description Validation Error */
