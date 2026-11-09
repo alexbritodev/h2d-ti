@@ -147,6 +147,44 @@ async def test_resposta_com_fonte_chega_em_sse_e_fica_registrada(
     assert answer["id"]
 
 
+@pytest.mark.parametrize(
+    ("texto", "social"),
+    [
+        ("oi", True),
+        ("Oi, tudo bem?", True),
+        ("bom dia", True),
+        ("muito obrigado!", True),
+        ("valeu, tchau", True),
+        ("quem é você?", True),
+        ("oi, a VPN não conecta", False),
+        ("bom dia, preciso de ajuda com a impressora", False),
+        ("como conecto na VPN", False),
+        ("", False),
+    ],
+)
+def test_detecta_conversa_social(texto, social):
+    from h2d.chat.service import is_smalltalk
+
+    assert is_smalltalk(texto) is social
+
+
+async def test_saudacao_e_respondida_pelo_modelo_sem_busca_e_sem_fontes(
+    client, make_user, session, app, tmp_path
+):
+    await _base(session, tmp_path, VPN)
+    await _login(client, make_user)
+    conversation_id = await _conversation(client)
+
+    events = await _say(client, conversation_id, "oi, tudo bem?")
+
+    assert _done(events)["action"] == "smalltalk"
+    assert next(data for name, data in events if name == "sources")["citations"] == []
+    assert "Não encontrei" not in _text(events)
+    calls = list(await session.scalars(select(LlmCall)))
+    assert [c.purpose for c in calls] == ["smalltalk"]
+    assert app.state.fake_llm.calls  # o modelo foi chamado
+
+
 async def test_senha_digitada_nao_chega_ao_banco_nem_ao_modelo(
     client, make_user, session, app, tmp_path
 ):

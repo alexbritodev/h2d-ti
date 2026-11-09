@@ -5,7 +5,13 @@ export type Citation = components["schemas"]["Citation"];
 export type TicketRef = components["schemas"]["TicketRef"];
 export type ConversationStatus = components["schemas"]["ConversationStatus"];
 
-export type ChatAction = "answered" | "not_found" | "escalate" | "unavailable" | "limit";
+export type ChatAction =
+  | "answered"
+  | "not_found"
+  | "escalate"
+  | "unavailable"
+  | "limit"
+  | "smalltalk";
 
 export interface StreamHandlers {
   onToken: (text: string) => void;
