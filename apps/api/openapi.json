@@ -601,6 +601,11 @@
             "title": "Document Id",
             "type": "string"
           },
+          "kind": {
+            "default": "kb",
+            "title": "Kind",
+            "type": "string"
+          },
           "title": {
             "title": "Title",
             "type": "string"

@@ -1059,6 +1059,11 @@ export interface components {
              * Format: uuid
              */
             document_id: string;
+            /**
+             * Kind
+             * @default kb
+             */
+            kind: string;
             /** Title */
             title: string;
         };

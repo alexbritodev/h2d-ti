@@ -202,18 +202,24 @@ export function ChatPage() {
                     )}
                     {message.citations.length > 0 && (
                       <div className="flex flex-wrap gap-2">
-                        {message.citations.map((citation, index) => (
-                          <button
-                            key={citation.chunk_id}
-                            type="button"
-                            onClick={() => setOpenedChunk(citation.chunk_id)}
-                            className="cursor-pointer"
-                          >
-                            <Badge tone="info">
-                              <FileText aria-hidden className="size-3" />[{index + 1}] {citation.title}
+                        {message.citations.map((citation, index) =>
+                          citation.kind === "ticket" ? (
+                            <Badge key={citation.chunk_id} tone="warn" title="Chamado do sistema">
+                              <Headset aria-hidden className="size-3" />[{index + 1}] {citation.title}
                             </Badge>
-                          </button>
-                        ))}
+                          ) : (
+                            <button
+                              key={citation.chunk_id}
+                              type="button"
+                              onClick={() => setOpenedChunk(citation.chunk_id)}
+                              className="cursor-pointer"
+                            >
+                              <Badge tone="info">
+                                <FileText aria-hidden className="size-3" />[{index + 1}] {citation.title}
+                              </Badge>
+                            </button>
+                          ),
+                        )}
                       </div>
                     )}
                     {!message.streaming && message.action && OFFER_TICKET.includes(message.action) && !ticket && (
@@ -312,6 +318,14 @@ export function ChatPage() {
             <ul className="divide-y divide-border">
               {lastSources.map((source, index) => (
                 <li key={source.chunk_id}>
+                  {source.kind === "ticket" ? (
+                    <div className="space-y-1 p-4">
+                      <p className="font-medium">
+                        [{index + 1}] {source.title}
+                      </p>
+                      <p className="font-mono text-[11px] text-muted">{source.breadcrumb}</p>
+                    </div>
+                  ) : (
                   <button
                     type="button"
                     onClick={() => setOpenedChunk(source.chunk_id)}
@@ -322,6 +336,7 @@ export function ChatPage() {
                     </p>
                     <p className="font-mono text-[11px] text-muted">{source.breadcrumb}</p>
                   </button>
+                  )}
                 </li>
               ))}
             </ul>

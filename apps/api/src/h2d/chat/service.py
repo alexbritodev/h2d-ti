@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from h2d.chat import prompts
 from h2d.chat.masking import mask_sensitive
+from h2d.chat.tickets_context import admin_ticket_sources
 from h2d.config import get_settings
 from h2d.escritorio.events import emit_agent_event
 from h2d.kb.embeddings import Embedder
@@ -158,6 +159,7 @@ def _cited(answer: str, hits: list[Hit]) -> list[dict[str, Any]]:
             "document_id": str(hits[i - 1].document_id),
             "title": hits[i - 1].document_title,
             "breadcrumb": hits[i - 1].breadcrumb,
+            "kind": hits[i - 1].kind,
         }
         for i in seen
     ]
@@ -337,6 +339,12 @@ async def handle_user_message(
             "fontes": sorted({hit.document_title for hit in hits})[:5],
         },
     )
+    admin_note = ""
+    if user.role is Role.ADMIN:
+        # Só o administrador enxerga os chamados do sistema: eles entram como fontes extras.
+        hits = [*hits, *await admin_ticket_sources(session, query)]
+        admin_note = f"\n\n{prompts.ADMIN_NOTE}"
+
     try:
         answered = await call_llm(
             session,
@@ -345,7 +353,9 @@ async def handle_user_message(
             [
                 ChatMessage("system", prompts.ANSWER_PROMPT),
                 *_history(previous),
-                ChatMessage("user", f"{_sources_block(hits)}\n\nPergunta: {masked.text}"),
+                ChatMessage(
+                    "user", f"{_sources_block(hits)}{admin_note}\n\nPergunta: {masked.text}"
+                ),
             ],
             user=user,
             conversation=conversation,

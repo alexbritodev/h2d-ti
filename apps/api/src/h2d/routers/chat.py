@@ -47,6 +47,7 @@ class Citation(BaseModel):
     document_id: uuid.UUID
     title: str
     breadcrumb: str
+    kind: str = "kb"
 
 
 class MessageOut(BaseModel):

@@ -58,6 +58,7 @@ class Hit:
     content: str
     visibility: str
     score: float
+    kind: str = "kb"  # "ticket" quando a fonte é um chamado (só no chat do administrador)
 
 
 def _tsquery(query: str) -> str:
