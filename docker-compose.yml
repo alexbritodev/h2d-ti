@@ -22,6 +22,13 @@ x-api-env: &api-env
   ALLOW_DEMO_SEED: ${ALLOW_DEMO_SEED:-false}
   SEED_PASSWORD: ${SEED_PASSWORD:-}
   OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+  # Modelo de linguagem. O padrão é o roteador gratuito do OpenRouter, que escolhe ao acaso um
+  # modelo gratuito disponível. Para mais estabilidade use um modelo pago barato, ex.:
+  # anthropic/claude-haiku-5.5.
+  OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openrouter/free}
+  OPENROUTER_FALLBACK_MODELS: ${OPENROUTER_FALLBACK_MODELS:-}
+  # Teto de chamadas ao modelo por dia (todos os usuários). 45 serve ao plano gratuito.
+  LLM_DAILY_REQUEST_LIMIT: ${LLM_DAILY_REQUEST_LIMIT:-45}
   # Integração com o n8n (rede interna). Sem o segredo, os eventos ficam na fila e nada é enviado.
   N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://h2d-n8n:5678/webhook/h2d-events}
   N8N_HMAC_SECRET: ${N8N_HMAC_SECRET:-}
