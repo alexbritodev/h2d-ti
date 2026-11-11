@@ -84,6 +84,10 @@ CLARIFY_TEXT = (
     "Não achei isso direto nos manuais. Pode me contar um pouco mais? "
     "Por exemplo, o que aparece na tela e desde quando acontece."
 )
+CLARIFY_TOPICS_TEXT = (
+    "Não achei isso direto nos manuais, mas tenho material sobre: {topics}. Algum deles ajuda? "
+    "Se não, me conta o que aparece na tela e desde quando acontece."
+)
 UNAVAILABLE_TEXT = (
     "O assistente está indisponível no momento. "
     "Você pode abrir um chamado direto, e a equipe de TI atende."

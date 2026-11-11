@@ -14,9 +14,19 @@ export type ChatAction =
   | "smalltalk"
   | "clarify";
 
+export type FlowStatus = "ok" | "warn" | "fail" | "skip";
+
+/** Uma etapa do fluxo do RAG no turno (só o administrador recebe). */
+export interface FlowStep {
+  id: string;
+  status: FlowStatus;
+  detail: string;
+}
+
 export interface StreamHandlers {
   onToken: (text: string) => void;
   onSources: (citations: Citation[]) => void;
+  onFlow?: (steps: FlowStep[]) => void;
   onDone: (done: {
     message_id: string;
     action: ChatAction;
@@ -40,7 +50,7 @@ function parseEvent(block: string): { event: string; data: unknown } | null {
 
 /**
  * Envia a mensagem e lê a resposta em SSE. Usa fetch (e não EventSource) porque o envio é um POST.
- * Os eventos chegam na ordem: status, token (vários), sources, done. Um erro de limite vem como
+ * Os eventos chegam na ordem: status, token (vários), sources, flow (só administrador), done. Um erro de limite vem como
  * evento "error".
  */
 export async function sendMessage(
@@ -89,6 +99,7 @@ export async function sendMessage(
       const data = parsed.data as Record<string, unknown>;
       if (parsed.event === "token") handlers.onToken(String(data.text ?? ""));
       else if (parsed.event === "sources") handlers.onSources((data.citations as Citation[]) ?? []);
+      else if (parsed.event === "flow") handlers.onFlow?.((data.steps as FlowStep[]) ?? []);
       else if (parsed.event === "done") handlers.onDone(data as unknown as Parameters<StreamHandlers["onDone"]>[0]);
       else if (parsed.event === "error") handlers.onError(String(data.detail ?? "Erro ao responder."));
     }

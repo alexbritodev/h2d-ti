@@ -37,6 +37,7 @@ Action = Literal[
     "answered", "clarify", "not_found", "escalate", "unavailable", "limit", "smalltalk"
 ]
 HISTORY_MESSAGES = 6
+ANSWER_MAX_TOKENS = 1500  # modelos que "pensam" gastam o limite no raciocínio e cortam a resposta
 SEARCH_LIMIT = 8  # trechos têm ~60 palavras: 5 deixavam o modelo sem contexto para perguntas amplas
 
 log = logging.getLogger("h2d.chat")
@@ -58,6 +59,8 @@ class TurnResult:
     message: Message
     citations: list[dict[str, Any]] = field(default_factory=list)
     reason: str | None = None
+    # Etapas do fluxo do RAG neste turno ({"id", "status", "detail"}): só o administrador as vê.
+    flow: list[dict[str, str]] = field(default_factory=list)
 
 
 async def get_prompt_version(session: AsyncSession) -> PromptVersion:
@@ -107,7 +110,7 @@ async def call_llm(
     conversation: Conversation,
     prompt_version: PromptVersion | None = None,
     temperature: float = 0.2,
-    max_tokens: int = 700,
+    max_tokens: int = ANSWER_MAX_TOKENS,
 ) -> LLMResult:
     """Chama o modelo e grava a linha em llm_calls, com sucesso ou erro."""
     base = {
@@ -211,6 +214,16 @@ async def handle_user_message(
 
     # Tudo o que vem do usuário passa pelo mascaramento antes de qualquer gravação ou envio.
     masked = mask_sensitive(text)
+    flow: list[dict[str, str]] = []
+
+    def step(stage: str, status: str, detail: str = "") -> None:
+        flow.append({"id": stage, "status": status, "detail": detail})
+
+    step(
+        "masking",
+        "warn" if masked.redactions else "ok",
+        f"{masked.redactions} dado(s) sensível(is) escondido(s)" if masked.redactions else "",
+    )
     previous = list(
         await session.scalars(
             select(Message)
@@ -272,7 +285,9 @@ async def handle_user_message(
         if action == "escalate":
             conversation.status = ConversationStatus.ESCALATED
         await session.flush()
-        return TurnResult(action, message, citations or [], reason)
+        outcome = {"answered": "ok", "smalltalk": "ok", "clarify": "warn", "escalate": "warn"}
+        step("outcome", outcome.get(action, "fail"), reason or "")
+        return TurnResult(action, message, citations or [], reason, flow)
 
     async def compose(
         situation: str,
@@ -297,22 +312,29 @@ async def handle_user_message(
                 conversation=conversation,
                 prompt_version=prompt_version,
                 temperature=0.5,
-                max_tokens=200,
+                max_tokens=500,
             )
-            body = written.text.strip() or fallback
+            body = written.text.strip()
+            if not body:
+                log.warning("modelo devolveu texto vazio ao compor (%s)", reason)
+                body = fallback
         except LLMError:
             body = fallback
         return await reply(action, body, prompt_version=prompt_version, reason=reason)
 
     # Tema crítico ou pedido de humano: não tenta resolver.
     if _matches(masked.text, prompts.CRITICAL_KEYWORDS):
+        step("triage", "warn", "tema crítico: vai direto para a TI")
         return await compose(
             prompts.SITUATION_CRITICAL, prompts.CRITICAL_TEXT, "critical", "escalate"
         )
     if _matches(masked.text, prompts.HUMAN_KEYWORDS):
+        step("triage", "warn", "pediu a equipe de TI")
         return await compose(
             prompts.SITUATION_HUMAN, prompts.HUMAN_TEXT, "human_requested", "escalate"
         )
+
+    step("triage", "ok", "tema comum")
 
     # Quanto ainda cabe no teto diário do modelo (soma de todos os usuários).
     if await llm_calls_today(session) + 2 > settings.llm_daily_request_limit:
@@ -335,11 +357,15 @@ async def handle_user_message(
                 user=user,
                 conversation=conversation,
                 temperature=0.0,
-                max_tokens=120,
+                max_tokens=300,
             )
             query = rewritten.text.strip() or masked.text
+            step("rewrite", "ok", query)
         except LLMError:
             query = masked.text  # sem reescrita, a busca usa a pergunta como veio
+            step("rewrite", "fail", "modelo fora: usou a pergunta como veio")
+    else:
+        step("rewrite", "skip", "primeira mensagem")
 
     hits = await search_chunks(
         session, query, embedder, can_see_it=can_see_it(user), limit=SEARCH_LIMIT
@@ -356,11 +382,23 @@ async def handle_user_message(
             "fontes": sorted({hit.document_title for hit in hits})[:5],
         },
     )
+    kb_hits = len(hits)
     admin_note = ""
+    tickets_found = 0
     if user.role is Role.ADMIN:
         # Só o administrador enxerga os chamados do sistema: eles entram como fontes extras.
-        hits = [*hits, *await admin_ticket_sources(session, query)]
+        ticket_hits = await admin_ticket_sources(session, query)
+        tickets_found = len(ticket_hits)
+        hits = [*hits, *ticket_hits]
         admin_note = f"\n\n{prompts.ADMIN_NOTE}"
+
+    docs = list(dict.fromkeys(h.document_title for h in hits if h.kind == "kb"))
+    found = f"{kb_hits} trecho(s) de {len(docs)} manual(is)"
+    if docs:
+        found += f": {'; '.join(docs[:3])}"
+    if tickets_found:
+        found += f" + {tickets_found} chamado(s)"
+    step("search", "ok" if hits else "fail", found if hits else "nenhum trecho encontrado")
 
     # O chat existe para filtrar chamados: na primeira vez que não acha, pergunta e sugere assuntos
     # parecidos. Só na segunda falha seguida oferece o chamado.
@@ -381,7 +419,7 @@ async def handle_user_message(
         related = "; ".join(titles) if titles else "nenhum"
         return await compose(
             prompts.SITUATION_CLARIFY.format(topics=related),
-            prompts.CLARIFY_TEXT,
+            prompts.CLARIFY_TOPICS_TEXT.format(topics=related) if titles else prompts.CLARIFY_TEXT,
             reason,
             "clarify",
             prompt_version=version,
@@ -405,6 +443,7 @@ async def handle_user_message(
         )
     except LLMError as error:
         reason = "rate_limited" if error.rate_limited else "llm_error"
+        step("model", "fail", reason)
         return await reply(
             "unavailable", prompts.UNAVAILABLE_TEXT, prompt_version=version, reason=reason
         )
@@ -425,13 +464,17 @@ async def handle_user_message(
                 "not_found",
                 prompt_version=version,
             )
+        step("model", "warn", "disse que não achou nos trechos")
         return await missed("model_declined", body)
     if not answer or "NAO_ENCONTREI" in answer.upper().replace(" ", "_"):
+        step("model", "warn", "disse que não achou nos trechos")
         return await missed("model_declined")
     citations = _cited(answer, hits)
     if not citations:
         # Resposta sem fonte não vale: o assistente só afirma o que consegue citar.
+        step("model", "warn", "respondeu sem citar fonte")
         return await missed("no_citation")
+    step("model", "ok", f"respondeu citando {len(citations)} fonte(s)")
 
     try:
         verdict = await call_llm(
@@ -449,9 +492,12 @@ async def handle_user_message(
             max_tokens=5,
         )
         if _fidelity_failed(verdict.text):
+            step("fidelity", "fail", "afirmou algo que os trechos não dizem")
             return await missed("unfaithful")
+        step("fidelity", "ok", "toda afirmação tem apoio nos trechos")
     except LLMError:
-        pass  # sem a conferência, a resposta já citada segue; a falha fica em llm_calls
+        # sem a conferência, a resposta já citada segue; a falha fica em llm_calls
+        step("fidelity", "skip", "conferência indisponível")
 
     return await reply("answered", answer, citations=citations, prompt_version=version)
 

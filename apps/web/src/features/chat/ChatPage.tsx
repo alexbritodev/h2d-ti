@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, Drawer } from "@/components/ui/primitives";
 import { toast } from "@/components/ui/toast";
+import { meQuery } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 import {
@@ -18,6 +19,7 @@ import {
   type ConversationStatus,
   createConversation,
   escalate,
+  type FlowStep,
   loadChunk,
   loadConversation,
   resolveConversation,
@@ -25,6 +27,7 @@ import {
   sendMessage,
   type TicketRef,
 } from "./api";
+import { RagFlowStrip } from "./RagFlowStrip";
 
 interface UiMessage {
   key: string;
@@ -51,6 +54,9 @@ export function ChatPage() {
   const [ticket, setTicket] = useState<TicketRef | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [openedChunk, setOpenedChunk] = useState<string | null>(null);
+  const [flow, setFlow] = useState<FlowStep[] | null>(null);
+  const { data: me } = useQuery(meQuery);
+  const isAdmin = me?.role === "admin";
   const listEnd = useRef<HTMLLIElement>(null);
 
   useEffect(() => {
@@ -100,6 +106,7 @@ export function ChatPage() {
     await sendMessage(id, text, {
       onToken: (piece) => update((m) => ({ ...m, content: m.content + piece })),
       onSources: (citations) => update((m) => ({ ...m, citations })),
+      onFlow: setFlow,
       onDone: (done) => {
         update((m) => ({ ...m, id: done.message_id, action: done.action, streaming: false }));
         setStatus(done.conversation_status);
@@ -150,6 +157,7 @@ export function ChatPage() {
     setStatus("open");
     setTicket(null);
     setError(null);
+    setFlow(null);
   }
 
   return (
@@ -178,7 +186,8 @@ export function ChatPage() {
       />
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <Card className="flex min-h-[520px] flex-col xl:col-span-2">
+        <div className="space-y-4 xl:col-span-2">
+        <Card className="flex min-h-[520px] flex-col">
           <ol aria-label="Conversa" className="flex-1 space-y-5 overflow-y-auto p-5">
             <li className="flex gap-3">
               <BotAvatar />
@@ -309,6 +318,13 @@ export function ChatPage() {
             Respostas geradas por IA a partir dos manuais. Confira a fonte antes de seguir um procedimento.
           </p>
         </Card>
+        {isAdmin && (
+          <RagFlowStrip
+            steps={flow}
+            action={[...messages].reverse().find((m) => m.role === "assistant")?.action}
+          />
+        )}
+        </div>
 
         <Card className="self-start">
           <CardHeader title="Fontes consultadas" description="Trechos usados na última resposta" />

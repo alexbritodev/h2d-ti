@@ -24,7 +24,7 @@ from h2d.deps import CurrentUser, SessionDep
 from h2d.escritorio.events import emit_agent_event
 from h2d.kb.embeddings import Embedder, get_embedder
 from h2d.llm.client import LLM, get_llm
-from h2d.models import Conversation, ConversationStatus, Message, Ticket
+from h2d.models import Conversation, ConversationStatus, Message, Role, Ticket
 from h2d.tickets.service import create_ticket_from_conversation
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -214,6 +214,9 @@ async def send_message(
             if delay:
                 await asyncio.sleep(delay)
         yield _sse("sources", {"citations": result.citations})
+        if user.role is Role.ADMIN:
+            # O fluxo do RAG mostra manuais, pontuações e falhas do modelo: só o administrador.
+            yield _sse("flow", {"steps": result.flow})
         emit_agent_event(
             room="recepcao",
             action="resposta_enviada",

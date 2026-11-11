@@ -334,6 +334,62 @@ def test_so_um_nao_explicito_reprova_na_conferencia():
     assert not _fidelity_failed("")
 
 
+async def test_modelo_que_devolve_texto_vazio_ainda_sugere_assuntos_da_base(
+    client, make_user, session, app, tmp_path
+):
+    """Se o modelo falhar ao escrever o esclarecimento, o texto de reserva leva os assuntos
+    próximos em vez de uma pergunta genérica."""
+    await _base(session, tmp_path, VPN)
+    await _login(client, make_user)
+    app.state.fake_llm._handler = lambda m: "" if "Situação:" in m[0].content else "[NAO_ENCONTREI]"
+    conversation_id = await _conversation(client)
+
+    events = await _say(client, conversation_id, "qual o melhor sistema para servidor")
+
+    assert _done(events)["action"] == "clarify"
+    assert "VPN corporativa" in _text(events)
+
+
+async def test_so_o_administrador_recebe_o_fluxo_do_rag(client, make_user, session, app, tmp_path):
+    await _base(session, tmp_path, VPN)
+    app.state.fake_llm._handler = lambda m: (
+        "SIM" if "SIM ou NAO" in m[0].content else "A sessão da VPN dura 12 horas [1]."
+    )
+    pergunta = "quanto tempo dura a sessão da VPN"
+
+    await _login(client, make_user, Role.USER, "comum@h2d.local")
+    comum = await _say(client, await _conversation(client), pergunta)
+    client.cookies.clear()
+    await _login(client, make_user, Role.ADMIN, "admin@h2d.local")
+    admin = await _say(client, await _conversation(client), pergunta)
+
+    assert "flow" not in [name for name, _ in comum]
+    steps = next(data for name, data in admin if name == "flow")["steps"]
+    by_id = {s["id"]: s for s in steps}
+    assert [s["id"] for s in steps] == [
+        "masking", "triage", "rewrite", "search", "model", "fidelity", "outcome"
+    ]  # fmt: skip
+    assert by_id["search"]["status"] == "ok"
+    assert "VPN corporativa" in by_id["search"]["detail"]
+    assert by_id["model"]["detail"] == "respondeu citando 1 fonte(s)"
+    assert by_id["outcome"]["status"] == "ok"
+
+
+async def test_fluxo_do_rag_mostra_onde_a_resposta_parou(client, make_user, app):
+    await _login(client, make_user, Role.ADMIN, "admin@h2d.local")
+    app.state.fake_llm._handler = lambda m: (
+        "Pode contar mais?" if "Situação:" in m[0].content else "[NAO_ENCONTREI]"
+    )
+
+    events = await _say(client, await _conversation(client), "qual a política de férias?")
+
+    steps = {s["id"]: s for s in next(d for n, d in events if n == "flow")["steps"]}
+    assert steps["search"]["status"] == "fail"
+    assert steps["model"]["status"] == "warn"
+    assert "fidelity" not in steps
+    assert steps["outcome"] == {"id": "outcome", "status": "warn", "detail": "model_declined"}
+
+
 async def test_modelo_fora_do_ar_oferece_abrir_chamado(client, make_user, session, app, tmp_path):
     await _base(session, tmp_path, VPN)
     await _login(client, make_user)

@@ -88,6 +88,8 @@ class OpenRouterClient:
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
+        # Modelos que raciocinam gastam max_tokens pensando e podem devolver texto vazio ou cortado.
+        body["reasoning"] = {"effort": "low"}
         if self._fallbacks:
             # O OpenRouter tenta os modelos da lista, em ordem, se o primeiro falhar.
             body["models"] = [self.model_name, *self._fallbacks]

@@ -18,7 +18,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from h2d.chat import prompts
 from h2d.chat.masking import mask_sensitive
-from h2d.chat.service import HISTORY_MESSAGES, SEARCH_LIMIT, _sources_block, llm_calls_today
+from h2d.chat.service import (
+    ANSWER_MAX_TOKENS,
+    HISTORY_MESSAGES,
+    SEARCH_LIMIT,
+    _sources_block,
+    llm_calls_today,
+)
 from h2d.config import get_settings
 from h2d.kb.embeddings import Embedder, embed_async
 from h2d.kb.search import CANDIDATES, RRF_K, Hit, _tsquery
@@ -369,7 +375,7 @@ async def trace_question(
         model=settings.openrouter_model,
         fallbacks=[m.strip() for m in settings.openrouter_fallback_models.split(",") if m.strip()],
         temperature=0.2,
-        max_tokens=700,
+        max_tokens=ANSWER_MAX_TOKENS,
         calls_per_turn="1 a 3 (reescrita, resposta e conferência)",
         daily_limit=settings.llm_daily_request_limit,
         calls_today=await llm_calls_today(session),
