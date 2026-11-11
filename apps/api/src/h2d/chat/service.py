@@ -4,6 +4,7 @@ Cada passo que pode falhar tem um caminho de saída que não inventa resposta: s
 citação, sem fidelidade ou sem modelo, o assistente diz que não achou e oferece abrir chamado.
 """
 
+import logging
 import re
 import uuid
 from dataclasses import dataclass, field
@@ -34,7 +35,15 @@ from h2d.models import (
 
 Action = Literal["answered", "not_found", "escalate", "unavailable", "limit", "smalltalk"]
 HISTORY_MESSAGES = 6
-SEARCH_LIMIT = 5
+SEARCH_LIMIT = 8  # trechos têm ~60 palavras: 5 deixavam o modelo sem contexto para perguntas amplas
+
+log = logging.getLogger("h2d.chat")
+
+
+def _fidelity_failed(verdict: str) -> bool:
+    """Só um NAO explícito reprova. Texto que apenas começa com N ("Nenhuma...", "Nesse caso...")
+    de um modelo que explica em vez de obedecer não pode derrubar uma resposta boa."""
+    return re.match(r"\W*N[AÃ]O\b", verdict.strip().upper()) is not None
 
 
 class ChatLimitError(Exception):
@@ -243,6 +252,9 @@ async def handle_user_message(
         reason: str | None = None,
     ) -> TurnResult:
         content = f"{note}\n\n{body}" if note else body
+        if action == "not_found":
+            # Sem isto não há como saber se faltou trecho, o modelo desistiu ou a conferência vetou.
+            log.warning("chat sem resposta: motivo=%s conversa=%s", reason, conversation.id)
         message = Message(
             conversation_id=conversation.id,
             role=MessageRole.ASSISTANT,
@@ -417,7 +429,7 @@ async def handle_user_message(
             temperature=0.0,
             max_tokens=5,
         )
-        if verdict.text.strip().upper().startswith("N"):
+        if _fidelity_failed(verdict.text):
             return await compose(
                 prompts.SITUATION_NOT_FOUND,
                 prompts.NOT_FOUND_TEXT,

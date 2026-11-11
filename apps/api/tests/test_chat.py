@@ -289,6 +289,39 @@ async def test_resposta_que_a_conferencia_reprova_nao_e_entregue(
     assert "30 dias" not in _text(events)
 
 
+async def test_conferencia_que_so_comeca_com_n_nao_reprova_resposta_boa(
+    client, make_user, session, app, tmp_path
+):
+    """Modelo que explica ("Nenhuma afirmação foi inventada") em vez de dizer SIM não derruba a
+    resposta: só um NAO explícito reprova."""
+    await _base(session, tmp_path, VPN)
+    await _login(client, make_user)
+
+    def handler(messages) -> str:
+        if "SIM ou NAO" in messages[0].content:
+            return "Nenhuma afirmação inventada."
+        return "A sessão da VPN dura 12 horas [1]."
+
+    app.state.fake_llm._handler = handler
+    conversation_id = await _conversation(client)
+
+    events = await _say(client, conversation_id, "quanto tempo dura a sessão da VPN")
+
+    assert _done(events)["action"] == "answered"
+    assert "12 horas" in _text(events)
+
+
+def test_so_um_nao_explicito_reprova_na_conferencia():
+    from h2d.chat.service import _fidelity_failed
+
+    assert _fidelity_failed("NAO")
+    assert _fidelity_failed(" não.")
+    assert _fidelity_failed("Não, a resposta inventa")
+    assert not _fidelity_failed("SIM")
+    assert not _fidelity_failed("Nenhuma afirmação inventada")
+    assert not _fidelity_failed("")
+
+
 async def test_modelo_fora_do_ar_oferece_abrir_chamado(client, make_user, session, app, tmp_path):
     await _base(session, tmp_path, VPN)
     await _login(client, make_user)

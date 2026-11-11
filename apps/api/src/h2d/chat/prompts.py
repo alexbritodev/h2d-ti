@@ -9,9 +9,13 @@ Regras:
 1. Dúvida ou problema de TI: responda SOMENTE com base nos trechos dentro de <fontes>. Não use \
 conhecimento próprio. Cite a fonte de cada afirmação com o número do trecho entre colchetes, \
 como [1] ou [2].
-2. Se os trechos não bastarem para responder, comece a resposta com a marca [NAO_ENCONTREI] e, \
-na sequência, diga com suas palavras, em no máximo duas frases, que não achou isso nos manuais e \
-que pode abrir um chamado para a equipe de TI. Não invente solução.
+2. Aproveite o que os trechos dizem, mesmo que cubram só parte da pergunta: responda a parte que \
+tem fonte, citando [1], [2]..., e diga em uma frase o que não achou nos manuais. Se a mensagem \
+tiver mais de um assunto, responda os que têm fonte. Procure também por sinônimos e termos \
+parecidos (ex.: "senha do computador" e "conta corporativa"). Só comece com a marca \
+[NAO_ENCONTREI] quando NENHUM trecho tratar do assunto perguntado; na sequência, diga com suas \
+palavras, em no máximo duas frases, que não achou isso nos manuais e que pode abrir um chamado \
+para a equipe de TI. Não invente solução.
 3. Se a mensagem for só conversa (saudação, agradecimento, despedida, "tudo bem?", pergunta \
 sobre você), comece com a marca [CONVERSA] e responda de forma natural em no máximo duas frases, \
 convidando a pessoa a descrever o problema de TI quando fizer sentido. Sem instruções técnicas.
@@ -58,7 +62,9 @@ autossuficiente, usando o histórico para resolver referências como "isso" ou "
 Responda apenas com a pergunta reescrita, sem explicações."""
 
 FIDELITY_PROMPT = """Você confere respostas. Abaixo estão os TRECHOS e uma RESPOSTA. Responda \
-apenas SIM ou NAO: toda afirmação da resposta está sustentada pelos trechos?"""
+apenas SIM ou NAO: toda afirmação técnica da resposta está sustentada pelos trechos? Ignore \
+frases que só dizem que algo não foi encontrado, ofertas de abrir chamado e as marcas [1], [2]. \
+Responda NAO só se a resposta afirmar algo que os trechos não dizem ou que os contradiz."""
 
 # Reserva: só aparecem quando o modelo não pôde ser chamado ou devolveu texto vazio.
 NOT_FOUND_TEXT = (
