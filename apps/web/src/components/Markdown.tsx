@@ -1,7 +1,49 @@
+import { Check, Copy } from "lucide-react";
+import { isValidElement, type ReactNode, useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { cn } from "@/lib/utils";
+
+/** Texto puro de um nó React (o conteúdo do <code> dentro do <pre>). */
+function textOf(node: ReactNode): string {
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(textOf).join("");
+  if (isValidElement(node)) return textOf((node.props as { children?: ReactNode }).children);
+  return "";
+}
+
+/** Bloco de código com botão para copiar: o usuário cola o comando direto no terminal. */
+function CodeBlock({ children }: { children?: ReactNode }) {
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(textOf(children).replace(/\n$/, ""));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setCopied(false); // sem permissão da área de transferência: o texto continua selecionável
+    }
+  }
+
+  return (
+    <div className="group relative mb-2 last:mb-0">
+      <pre className="overflow-x-auto rounded-lg border border-border bg-surface-2 p-3 pr-20 font-mono text-xs [&_code]:bg-transparent [&_code]:p-0">
+        {children}
+      </pre>
+      <button
+        type="button"
+        onClick={() => void copy()}
+        aria-label={copied ? "Comando copiado" : "Copiar comando"}
+        className="absolute top-2 right-2 flex cursor-pointer items-center gap-1 rounded-md border border-border bg-surface px-2 py-1 text-[11px] text-muted hover:text-text"
+      >
+        {copied ? <Check aria-hidden className="size-3 text-accent" /> : <Copy aria-hidden className="size-3" />}
+        {copied ? "Copiado" : "Copiar"}
+      </button>
+    </div>
+  );
+}
 
 // HTML dentro do Markdown não é interpretado (padrão do react-markdown): o texto vem de arquivos
 // enviados por administradores, mas nunca vira marcação da página.
@@ -20,11 +62,7 @@ const COMPONENTS: Components = {
       {children}
     </code>
   ),
-  pre: ({ children }) => (
-    <pre className="mb-2 overflow-x-auto rounded-lg bg-surface-2 p-3 font-mono text-xs last:mb-0 [&_code]:bg-transparent [&_code]:p-0">
-      {children}
-    </pre>
-  ),
+  pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
   table: ({ children }) => (
     <div className="mb-2 overflow-x-auto last:mb-0">
       <table className="w-full border-collapse text-left text-xs">{children}</table>

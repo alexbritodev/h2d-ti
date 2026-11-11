@@ -172,7 +172,7 @@ WITH vec AS (
          row_number() OVER (ORDER BY ts_rank_cd(c.tsv, q.query) DESC) AS rank
   FROM kb_chunks c
   JOIN kb_document_versions v ON v.id = c.version_id,
-       (SELECT to_tsquery('portuguese', :tsq) AS query) q
+       (SELECT to_tsquery('portuguese', h2d_unaccent(:tsq)) AS query) q
   WHERE v.status = 'active' AND c.tsv @@ q.query
     AND (CAST(:can_it AS boolean) OR c.visibility = 'public')
   ORDER BY ts_rank_cd(c.tsv, q.query) DESC
@@ -189,10 +189,10 @@ JOIN kb_documents d ON d.id = c.document_id
 )
 
 _WORDS_SQL = text(
-    "SELECT w AS word, to_tsvector('portuguese', w)::text AS lexeme "
+    "SELECT w AS word, to_tsvector('portuguese', h2d_unaccent(w))::text AS lexeme "
     "FROM unnest(CAST(:words AS text[])) AS w"
 )
-_TSQUERY_SQL = text("SELECT to_tsquery('portuguese', :tsq)::text")
+_TSQUERY_SQL = text("SELECT to_tsquery('portuguese', h2d_unaccent(:tsq))::text")
 _TSV_ITEM = re.compile(r"'((?:[^']|'')*)'(?::([0-9A-D,]+))?")
 
 

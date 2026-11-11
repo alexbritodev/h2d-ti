@@ -45,6 +45,10 @@ class LLMError(Exception):
         self.rate_limited = rate_limited
 
 
+class EmptyAnswerError(LLMError):
+    """O modelo gastou todo o limite de tokens raciocinando e não escreveu a resposta."""
+
+
 class LLM(Protocol):
     model_name: str
 
@@ -88,8 +92,9 @@ class OpenRouterClient:
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
-        # Modelos que raciocinam gastam max_tokens pensando e podem devolver texto vazio ou cortado.
-        body["reasoning"] = {"effort": "low"}
+        # Modelos que raciocinam gastam todo o max_tokens pensando e devolvem texto vazio ("effort:
+        # low" não basta: medido, 1500 de 1500 tokens). Desligar o raciocínio faz responder.
+        body["reasoning"] = {"enabled": False}
         if self._fallbacks:
             # O OpenRouter tenta os modelos da lista, em ordem, se o primeiro falhar.
             body["models"] = [self.model_name, *self._fallbacks]
@@ -101,28 +106,56 @@ class OpenRouterClient:
         last_error = "sem resposta"
         rate_limited = False
         async with httpx.AsyncClient(timeout=self._timeout, transport=self._transport) as client:
-            for attempt in range(3):
+            for attempt in range(5):
                 try:
                     response = await client.post(OPENROUTER_URL, json=body, headers=headers)
                 except httpx.HTTPError as error:
                     last_error = f"{type(error).__name__}: {error}"
                 else:
                     if response.status_code == 200:
-                        return self._parse(response, started)
+                        try:
+                            return self._parse(response, started)
+                        except EmptyAnswerError as error:
+                            # O roteador gratuito sorteia o modelo a cada chamada: tenta de novo,
+                            # com mais espaço para o raciocínio caber e sobrar para a resposta.
+                            last_error = str(error)
+                            body["max_tokens"] = min(int(body["max_tokens"]) * 2, 4000)
+                            continue
                     rate_limited = response.status_code == 429
                     last_error = f"HTTP {response.status_code}: {response.text[:300]}"
+                    if response.status_code == 400 and self._relax_reasoning(body, response.text):
+                        continue  # o modelo não aceita desligar o raciocínio: tenta o modo leve
                     if response.status_code not in RETRYABLE:
                         break
-                if attempt < 2:
+                if attempt < 4:
                     await self._sleep(1.5 * (attempt + 1))
         raise LLMError(last_error, rate_limited=rate_limited)
+
+    @staticmethod
+    def _relax_reasoning(body: dict[str, Any], error_text: str) -> bool:
+        """Modelos com raciocínio obrigatório recusam `enabled: false`: desce para esforço baixo e,
+        se ainda recusar, tira o parâmetro. Devolve False quando não há mais o que afrouxar."""
+        if "reasoning" not in error_text.lower() or "reasoning" not in body:
+            return False
+        if body["reasoning"] == {"enabled": False}:
+            body["reasoning"] = {"effort": "low"}
+        else:
+            del body["reasoning"]
+        return True
 
     def _parse(self, response: httpx.Response, started: float) -> LLMResult:
         try:
             data = response.json()
-            text = data["choices"][0]["message"]["content"] or ""
+            choice = data["choices"][0]
+            text = choice["message"]["content"] or ""
         except (ValueError, KeyError, IndexError, TypeError) as error:
             raise LLMError(f"Resposta inesperada do provedor: {error}") from error
+        if not text.strip() and choice.get("finish_reason") == "length":
+            # Sem isto o texto vazio parecia "o modelo não achou" e o usuário recebia a pergunta
+            # de esclarecimento no lugar da resposta.
+            raise EmptyAnswerError(
+                "O modelo gastou todos os tokens raciocinando e não escreveu a resposta"
+            )
         usage = data.get("usage") or {}
         return LLMResult(
             text=text.strip(),

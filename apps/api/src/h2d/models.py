@@ -308,7 +308,9 @@ class KbChunk(Base):
     # O caminho de títulos entra na busca por palavras, junto com o texto do trecho.
     tsv: Mapped[str] = mapped_column(
         TSVECTOR,
-        Computed("to_tsvector('portuguese', breadcrumb || ' ' || content)", persisted=True),
+        Computed(
+            "to_tsvector('portuguese', h2d_unaccent(breadcrumb || ' ' || content))", persisted=True
+        ),
     )
     visibility: Mapped[Visibility] = mapped_column(_enum(Visibility, "kb_visibility"))
     created_at: Mapped[datetime] = _created_at()

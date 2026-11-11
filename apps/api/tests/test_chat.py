@@ -390,6 +390,78 @@ async def test_fluxo_do_rag_mostra_onde_a_resposta_parou(client, make_user, app)
     assert steps["outcome"] == {"id": "outcome", "status": "warn", "detail": "model_declined"}
 
 
+async def test_nao_desiste_na_primeira_e_busca_de_novo_com_termos_tecnicos(
+    client, make_user, session, app, tmp_path, monkeypatch
+):
+    """O modelo não achou nos primeiros trechos: ele lista comandos e sinônimos, a busca roda de
+    novo e a resposta sai montada com o manual novo."""
+    import uuid
+
+    from h2d.kb.search import Hit
+
+    def hit(title: str, text: str) -> Hit:
+        return Hit(uuid.uuid4(), uuid.uuid4(), title, title, text, "public", 0.03)
+
+    buscas: list[str] = []
+
+    async def fake_search(session, query, embedder, *, can_see_it, limit):
+        buscas.append(query)
+        if "adduser" in query:
+            return [hit("Manual do Ubuntu", "Para criar um usuário use: sudo adduser nome.")]
+        return [hit("Rede", "A rede corporativa usa DHCP.")]
+
+    monkeypatch.setattr("h2d.chat.service.search_chunks", fake_search)
+    await _login(client, make_user)
+    respostas = iter(["[NAO_ENCONTREI]", "1. Rode `sudo adduser nome` [1]."])
+
+    def handler(messages) -> str:
+        system = messages[0].content
+        if system.startswith("Você prepara buscas"):
+            return "adduser useradd criar usuário account"
+        if "SIM ou NAO" in system:
+            return "SIM"
+        return next(respostas)
+
+    app.state.fake_llm._handler = handler
+
+    events = await _say(client, await _conversation(client), "como crio um usuario no ubuntu")
+
+    assert _done(events)["action"] == "answered"
+    assert "adduser" in _text(events)
+    assert len(buscas) == 2 and "adduser" in buscas[1]
+    purposes = [
+        c.purpose for c in await session.scalars(select(LlmCall).order_by(LlmCall.created_at))
+    ]
+    assert purposes == ["answer", "expand", "answer", "fidelity"]
+    assert next(data for name, data in events if name == "sources")["citations"][0]["title"] == (
+        "Manual do Ubuntu"
+    )
+
+
+async def test_segunda_busca_que_nao_traz_nada_novo_cai_no_esclarecimento(
+    client, make_user, session, app, tmp_path
+):
+    await _base(session, tmp_path, VPN)  # a base inteira já veio na primeira busca
+    await _login(client, make_user, Role.ADMIN, "admin@h2d.local")
+
+    def handler(messages) -> str:
+        system = messages[0].content
+        if system.startswith("Você prepara buscas"):
+            return "vpn sessão"
+        if "Situação:" in system:
+            return "Pode contar mais?"
+        return "[NAO_ENCONTREI]"
+
+    app.state.fake_llm._handler = handler
+
+    events = await _say(client, await _conversation(client), "qual a política de férias?")
+
+    assert _done(events)["action"] == "clarify"
+    steps = {s["id"]: s for s in next(d for n, d in events if n == "flow")["steps"]}
+    assert "expand" not in steps  # nada novo para ler: não gastou uma segunda resposta
+    assert steps["model"]["status"] == "warn"
+
+
 async def test_modelo_fora_do_ar_oferece_abrir_chamado(client, make_user, session, app, tmp_path):
     await _base(session, tmp_path, VPN)
     await _login(client, make_user)

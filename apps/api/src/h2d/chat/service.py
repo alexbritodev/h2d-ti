@@ -20,7 +20,7 @@ from h2d.chat.tickets_context import admin_ticket_sources
 from h2d.config import get_settings
 from h2d.escritorio.events import emit_agent_event
 from h2d.kb.embeddings import Embedder
-from h2d.kb.search import Hit, search_chunks
+from h2d.kb.search import Hit, expand_sections, search_chunks
 from h2d.llm.client import LLM, ChatMessage, LLMError, LLMResult
 from h2d.models import (
     Conversation,
@@ -179,6 +179,20 @@ def _cited(answer: str, hits: list[Hit]) -> list[dict[str, Any]]:
     ]
 
 
+def _classify(answer: str, hits: list[Hit]) -> tuple[str, str]:
+    """Que tipo de resposta o modelo deu: conversa, "não achei", sem fonte ou boa. Devolve também
+    o texto que o próprio modelo escreveu depois da marca."""
+    tag = re.match(r"\s*\[(NAO_ENCONTREI|CONVERSA)\]\s*", answer.upper().replace("Ã", "A"))
+    if tag:
+        body = answer[tag.end() :].strip()
+        return ("smalltalk" if tag.group(1) == "CONVERSA" else "declined"), body
+    if not answer or "NAO_ENCONTREI" in answer.upper().replace(" ", "_"):
+        return "declined", ""
+    if not _cited(answer, hits):
+        return "no_citation", ""
+    return "ok", ""
+
+
 def _matches(text: str, keywords: tuple[str, ...]) -> bool:
     lowered = text.lower()
     return any(keyword in lowered for keyword in keywords)
@@ -217,7 +231,12 @@ async def handle_user_message(
     flow: list[dict[str, str]] = []
 
     def step(stage: str, status: str, detail: str = "") -> None:
-        flow.append({"id": stage, "status": status, "detail": detail})
+        entry = {"id": stage, "status": status, "detail": detail}
+        for index, current in enumerate(flow):
+            if current["id"] == stage:  # etapa repetida (segunda busca): vale a última
+                flow[index] = entry
+                return
+        flow.append(entry)
 
     step(
         "masking",
@@ -370,6 +389,9 @@ async def handle_user_message(
     hits = await search_chunks(
         session, query, embedder, can_see_it=can_see_it(user), limit=SEARCH_LIMIT
     )
+    found_chunks = len(hits)
+    # O modelo lê a seção inteira de cada trecho achado, para montar o passo a passo completo.
+    hits = await expand_sections(session, hits, can_see_it=can_see_it(user))
     emit_agent_event(
         room="rag",
         action="rag_busca",
@@ -382,7 +404,7 @@ async def handle_user_message(
             "fontes": sorted({hit.document_title for hit in hits})[:5],
         },
     )
-    kb_hits = len(hits)
+    kb_hits = found_chunks
     admin_note = ""
     tickets_found = 0
     if user.role is Role.ADMIN:
@@ -425,8 +447,8 @@ async def handle_user_message(
             prompt_version=version,
         )
 
-    try:
-        answered = await call_llm(
+    async def ask(sources: list[Hit]) -> LLMResult:
+        return await call_llm(
             session,
             llm,
             "answer",
@@ -434,13 +456,53 @@ async def handle_user_message(
                 ChatMessage("system", prompts.ANSWER_PROMPT),
                 *_history(previous),
                 ChatMessage(
-                    "user", f"{_sources_block(hits)}{admin_note}\n\nPergunta: {masked.text}"
+                    "user", f"{_sources_block(sources)}{admin_note}\n\nPergunta: {masked.text}"
                 ),
             ],
             user=user,
             conversation=conversation,
             prompt_version=version,
+            max_tokens=ANSWER_MAX_TOKENS,
         )
+
+    async def widen(current: list[Hit]) -> list[Hit] | None:
+        """Segunda busca: o modelo lista comandos e sinônimos que o manual usaria, e a busca roda de
+        novo com eles. Devolve os trechos reunidos, ou None se não trouxe nada novo."""
+        if not any(h.kind == "kb" for h in current):
+            return None  # base vazia ou sem acesso: uma segunda busca também não acharia nada
+        if await llm_calls_today(session) + 3 > settings.llm_daily_request_limit:
+            return None
+        try:
+            expanded = await call_llm(
+                session,
+                llm,
+                "expand",
+                [ChatMessage("system", prompts.EXPAND_PROMPT), ChatMessage("user", query)],
+                user=user,
+                conversation=conversation,
+                temperature=0.0,
+                max_tokens=300,
+            )
+        except LLMError:
+            return None
+        terms = " ".join(expanded.text.split())[:300]
+        if not terms:
+            return None
+        more = await search_chunks(
+            session, f"{query} {terms}", embedder, can_see_it=can_see_it(user), limit=SEARCH_LIMIT
+        )
+        known = {h.chunk_id for h in current}
+        fresh = [h for h in more if h.chunk_id not in known]
+        if not fresh:
+            return None
+        fresh = await expand_sections(session, fresh, can_see_it=can_see_it(user))
+        kb = [h for h in current if h.kind == "kb"]
+        extra = [h for h in current if h.kind != "kb"]
+        step("expand", "ok", f"{len(fresh)} trecho(s) novo(s) com: {terms[:80]}")
+        return [*fresh, *kb][: SEARCH_LIMIT + 4] + extra
+
+    try:
+        answered = await ask(hits)
     except LLMError as error:
         reason = "rate_limited" if error.rate_limited else "llm_error"
         step("model", "fail", reason)
@@ -448,29 +510,34 @@ async def handle_user_message(
             "unavailable", prompts.UNAVAILABLE_TEXT, prompt_version=version, reason=reason
         )
 
+    kind, body = _classify(answered.text.strip(), hits)
+    if kind in ("declined", "no_citation"):
+        # Não desiste na primeira: procura de novo com termos técnicos e sinônimos.
+        wider = await widen(hits)
+        if wider is not None:
+            hits = wider
+            try:
+                answered = await ask(hits)
+                kind, body = _classify(answered.text.strip(), hits)
+            except LLMError:
+                pass  # a segunda tentativa falhou: vale o desfecho da primeira
     answer = answered.text.strip()
-    tag = re.match(r"\s*\[(NAO_ENCONTREI|CONVERSA)\]\s*", answer.upper().replace("Ã", "A"))
-    if tag:
-        # O próprio modelo escreveu a resposta de conversa ou de "não encontrei".
-        body = answer[tag.end() :].strip()
-        action: Action = "smalltalk" if tag.group(1) == "CONVERSA" else "not_found"
-        if action == "smalltalk":
-            if body:
-                return await reply(action, body, prompt_version=version, reason="smalltalk")
-            return await compose(
-                prompts.SITUATION_NOT_FOUND,
-                prompts.NOT_FOUND_TEXT,
-                "smalltalk",
-                "not_found",
-                prompt_version=version,
-            )
+
+    if kind == "smalltalk":
+        if body:
+            return await reply("smalltalk", body, prompt_version=version, reason="smalltalk")
+        return await compose(
+            prompts.SITUATION_NOT_FOUND,
+            prompts.NOT_FOUND_TEXT,
+            "smalltalk",
+            "not_found",
+            prompt_version=version,
+        )
+    if kind == "declined":
         step("model", "warn", "disse que não achou nos trechos")
         return await missed("model_declined", body)
-    if not answer or "NAO_ENCONTREI" in answer.upper().replace(" ", "_"):
-        step("model", "warn", "disse que não achou nos trechos")
-        return await missed("model_declined")
     citations = _cited(answer, hits)
-    if not citations:
+    if kind == "no_citation":
         # Resposta sem fonte não vale: o assistente só afirma o que consegue citar.
         step("model", "warn", "respondeu sem citar fonte")
         return await missed("no_citation")

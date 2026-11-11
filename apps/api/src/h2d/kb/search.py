@@ -28,7 +28,7 @@ WITH vec AS (
   SELECT c.id, row_number() OVER (ORDER BY ts_rank_cd(c.tsv, q.query) DESC) AS rank
   FROM kb_chunks c
   JOIN kb_document_versions v ON v.id = c.version_id,
-       (SELECT to_tsquery('portuguese', :tsq) AS query) q
+       (SELECT to_tsquery('portuguese', h2d_unaccent(:tsq)) AS query) q
   WHERE v.status = 'active' AND c.tsv @@ q.query
     AND (CAST(:can_it AS boolean) OR c.visibility = 'public')
   ORDER BY ts_rank_cd(c.tsv, q.query) DESC
@@ -98,3 +98,61 @@ async def search_chunks(
         )
         for r in rows
     ]
+
+
+_SECTION_SQL = text(
+    """
+SELECT h.id AS hit_id, c.id AS id, c.content
+FROM kb_chunks h
+JOIN kb_chunks c ON c.version_id = h.version_id AND c.document_id = h.document_id
+                AND c.breadcrumb = h.breadcrumb
+WHERE h.id = ANY(CAST(:ids AS uuid[])) AND (CAST(:can_it AS boolean) OR c.visibility = 'public')
+  AND abs(c."position" - h."position") <= :radius
+ORDER BY h.id, c."position"
+"""
+)
+
+
+async def expand_sections(
+    session: AsyncSession, hits: list[Hit], *, can_see_it: bool, radius: int = 2
+) -> list[Hit]:
+    """Cada trecho tem ~60 palavras, e um passo a passo costuma ocupar vários. Devolve cada trecho
+    achado junto dos vizinhos da mesma seção, na ordem do manual. O trecho que já entrou na
+    leitura de outro não aparece duas vezes. A mesma regra de visibilidade vale para os vizinhos."""
+    kb = [h for h in hits if h.kind == "kb"]
+    if not kb:
+        return hits
+    rows = await session.execute(
+        _SECTION_SQL,
+        {"ids": [str(h.chunk_id) for h in kb], "can_it": can_see_it, "radius": radius},
+    )
+    around: dict[UUID, list[tuple[UUID, str]]] = {}
+    for row in rows:
+        around.setdefault(row.hit_id, []).append((row.id, row.content))
+    covered: set[UUID] = set()
+    expanded: dict[UUID, Hit] = {}
+    for hit in kb:
+        neighbours = around.get(hit.chunk_id)
+        if not neighbours or hit.chunk_id in covered:
+            continue
+        covered.update(chunk_id for chunk_id, _ in neighbours)
+        content = "\n\n".join(text_ for _, text_ in neighbours)
+        expanded[hit.chunk_id] = Hit(
+            hit.chunk_id,
+            hit.document_id,
+            hit.document_title,
+            hit.breadcrumb,
+            content,
+            hit.visibility,
+            hit.score,
+        )
+    # Sem vizinhos no banco (ou já cobertos), o trecho segue como veio; os de outras fontes também.
+    out: list[Hit] = []
+    for hit in hits:
+        if hit.kind != "kb":
+            out.append(hit)
+        elif hit.chunk_id in expanded:
+            out.append(expanded[hit.chunk_id])
+        elif hit.chunk_id not in covered:
+            out.append(hit)
+    return out

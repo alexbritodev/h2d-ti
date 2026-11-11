@@ -65,6 +65,70 @@ async def test_envia_chave_modelo_e_lista_de_reserva():
     assert vistos["body"]["temperature"] == 0.0
 
 
+async def test_desliga_o_raciocinio_para_o_modelo_responder():
+    vistos = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        vistos["body"] = json.loads(request.content)
+        return _ok()
+
+    await _client(handler).complete(MENSAGENS)
+
+    assert vistos["body"]["reasoning"] == {"enabled": False}
+
+
+async def test_modelo_com_raciocinio_obrigatorio_cai_para_esforco_baixo_e_depois_sem_parametro():
+    corpos = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        corpos.append(json.loads(request.content).get("reasoning", "ausente"))
+        if len(corpos) < 3:
+            return httpx.Response(400, text='{"error":"Reasoning is mandatory for this model"}')
+        return _ok("respondeu")
+
+    resultado = await _client(handler).complete(MENSAGENS)
+
+    assert resultado.text == "respondeu"
+    assert corpos == [{"enabled": False}, {"effort": "low"}, "ausente"]
+
+
+async def test_texto_vazio_por_falta_de_tokens_tenta_de_novo_com_mais_espaco():
+    limites = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        limites.append(json.loads(request.content)["max_tokens"])
+        if len(limites) == 1:
+            return httpx.Response(
+                200,
+                json={
+                    "model": "a/modelo:free",
+                    "choices": [{"message": {"content": ""}, "finish_reason": "length"}],
+                    "usage": {"completion_tokens": 700},
+                },
+            )
+        return _ok("agora sim")
+
+    resultado = await _client(handler).complete(MENSAGENS, max_tokens=700)
+
+    assert resultado.text == "agora sim"
+    assert limites == [700, 1400]
+
+
+async def test_texto_vazio_sempre_vira_erro_e_nao_resposta_vazia():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "model": "a/modelo:free",
+                "choices": [{"message": {"content": None}, "finish_reason": "length"}],
+                "usage": {"completion_tokens": 1500},
+            },
+        )
+
+    with pytest.raises(LLMError, match="gastou todos os tokens"):
+        await _client(handler).complete(MENSAGENS)
+
+
 async def test_tenta_de_novo_em_erro_temporario():
     tentativas = []
 
