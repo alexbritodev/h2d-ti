@@ -11,7 +11,8 @@ export type ChatAction =
   | "escalate"
   | "unavailable"
   | "limit"
-  | "smalltalk";
+  | "smalltalk"
+  | "clarify";
 
 export interface StreamHandlers {
   onToken: (text: string) => void;

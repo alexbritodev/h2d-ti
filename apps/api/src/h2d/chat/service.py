@@ -33,7 +33,9 @@ from h2d.models import (
     User,
 )
 
-Action = Literal["answered", "not_found", "escalate", "unavailable", "limit", "smalltalk"]
+Action = Literal[
+    "answered", "clarify", "not_found", "escalate", "unavailable", "limit", "smalltalk"
+]
 HISTORY_MESSAGES = 6
 SEARCH_LIMIT = 8  # trechos têm ~60 palavras: 5 deixavam o modelo sem contexto para perguntas amplas
 
@@ -252,12 +254,15 @@ async def handle_user_message(
         reason: str | None = None,
     ) -> TurnResult:
         content = f"{note}\n\n{body}" if note else body
-        if action == "not_found":
+        if action in ("not_found", "clarify"):
             # Sem isto não há como saber se faltou trecho, o modelo desistiu ou a conferência vetou.
-            log.warning("chat sem resposta: motivo=%s conversa=%s", reason, conversation.id)
+            log.warning(
+                "chat sem resposta (%s): motivo=%s conversa=%s", action, reason, conversation.id
+            )
         message = Message(
             conversation_id=conversation.id,
             role=MessageRole.ASSISTANT,
+            action=action,
             content=content,
             citations=citations or [],
             prompt_version_id=prompt_version.id if prompt_version else None,
@@ -357,6 +362,31 @@ async def handle_user_message(
         hits = [*hits, *await admin_ticket_sources(session, query)]
         admin_note = f"\n\n{prompts.ADMIN_NOTE}"
 
+    # O chat existe para filtrar chamados: na primeira vez que não acha, pergunta e sugere assuntos
+    # parecidos. Só na segunda falha seguida oferece o chamado.
+    already_asked = bool(previous) and previous[-1].action == "clarify"
+
+    async def missed(reason: str, body: str = "") -> TurnResult:
+        if already_asked:
+            if body:
+                return await reply("not_found", body, prompt_version=version, reason=reason)
+            return await compose(
+                prompts.SITUATION_NOT_FOUND,
+                prompts.NOT_FOUND_TEXT,
+                reason,
+                "not_found",
+                prompt_version=version,
+            )
+        titles = list(dict.fromkeys(h.document_title for h in hits if h.kind == "kb"))[:3]
+        related = "; ".join(titles) if titles else "nenhum"
+        return await compose(
+            prompts.SITUATION_CLARIFY.format(topics=related),
+            prompts.CLARIFY_TEXT,
+            reason,
+            "clarify",
+            prompt_version=version,
+        )
+
     try:
         answered = await call_llm(
             session,
@@ -385,34 +415,23 @@ async def handle_user_message(
         # O próprio modelo escreveu a resposta de conversa ou de "não encontrei".
         body = answer[tag.end() :].strip()
         action: Action = "smalltalk" if tag.group(1) == "CONVERSA" else "not_found"
-        reason = "smalltalk" if action == "smalltalk" else "model_declined"
-        if body:
-            return await reply(action, body, prompt_version=version, reason=reason)
-        return await compose(
-            prompts.SITUATION_NOT_FOUND,
-            prompts.NOT_FOUND_TEXT,
-            reason,
-            "not_found",
-            prompt_version=version,
-        )
+        if action == "smalltalk":
+            if body:
+                return await reply(action, body, prompt_version=version, reason="smalltalk")
+            return await compose(
+                prompts.SITUATION_NOT_FOUND,
+                prompts.NOT_FOUND_TEXT,
+                "smalltalk",
+                "not_found",
+                prompt_version=version,
+            )
+        return await missed("model_declined", body)
     if not answer or "NAO_ENCONTREI" in answer.upper().replace(" ", "_"):
-        return await compose(
-            prompts.SITUATION_NOT_FOUND,
-            prompts.NOT_FOUND_TEXT,
-            "model_declined",
-            "not_found",
-            prompt_version=version,
-        )
+        return await missed("model_declined")
     citations = _cited(answer, hits)
     if not citations:
         # Resposta sem fonte não vale: o assistente só afirma o que consegue citar.
-        return await compose(
-            prompts.SITUATION_NOT_FOUND,
-            prompts.NOT_FOUND_TEXT,
-            "no_citation",
-            "not_found",
-            prompt_version=version,
-        )
+        return await missed("no_citation")
 
     try:
         verdict = await call_llm(
@@ -430,13 +449,7 @@ async def handle_user_message(
             max_tokens=5,
         )
         if _fidelity_failed(verdict.text):
-            return await compose(
-                prompts.SITUATION_NOT_FOUND,
-                prompts.NOT_FOUND_TEXT,
-                "unfaithful",
-                "not_found",
-                prompt_version=version,
-            )
+            return await missed("unfaithful")
     except LLMError:
         pass  # sem a conferência, a resposta já citada segue; a falha fica em llm_calls
 

@@ -66,10 +66,23 @@ apenas SIM ou NAO: toda afirmação técnica da resposta está sustentada pelos 
 frases que só dizem que algo não foi encontrado, ofertas de abrir chamado e as marcas [1], [2]. \
 Responda NAO só se a resposta afirmar algo que os trechos não dizem ou que os contradiz."""
 
+SITUATION_CLARIFY = (
+    "você não achou a resposta nos manuais, mas ainda não vale abrir chamado: o objetivo é "
+    "resolver por aqui sempre que der. Faça UMA pergunta curta para entender melhor o problema "
+    "(o que aparece na tela, desde quando acontece, em qual aparelho ou sistema). Assuntos dos "
+    "manuais que podem estar relacionados: {topics}. Se algum parecer ligado ao que a pessoa "
+    "contou, sugira-o como possibilidade, perguntando se é isso; se nenhum parecer, só pergunte. "
+    "Não ofereça abrir chamado agora."
+)
+
 # Reserva: só aparecem quando o modelo não pôde ser chamado ou devolveu texto vazio.
 NOT_FOUND_TEXT = (
     "Não encontrei isso na base de conhecimento. "
     "Posso abrir um chamado para a equipe de TI cuidar disso."
+)
+CLARIFY_TEXT = (
+    "Não achei isso direto nos manuais. Pode me contar um pouco mais? "
+    "Por exemplo, o que aparece na tela e desde quando acontece."
 )
 UNAVAILABLE_TEXT = (
     "O assistente está indisponível no momento. "

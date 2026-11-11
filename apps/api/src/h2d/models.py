@@ -410,6 +410,9 @@ class Message(Base):
     citations: Mapped[list[dict[str, Any]]] = mapped_column(
         JSONB, default=list, server_default=text("'[]'::jsonb")
     )
+    # Desfecho do turno ("answered", "clarify", "not_found"...): o chat só oferece o chamado depois
+    # de ter pedido detalhes uma vez.
+    action: Mapped[str | None] = mapped_column(String(20))
     # 1 = útil, -1 = não ajudou.
     feedback: Mapped[int | None] = mapped_column(SmallInteger)
     prompt_version_id: Mapped[uuid.UUID | None] = mapped_column(

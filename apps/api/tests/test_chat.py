@@ -176,6 +176,14 @@ async def test_nao_encontrei_tambem_e_escrito_pelo_modelo(
 
     events = await _say(client, conversation_id, "como configuro o servidor de impressão")
 
+    # Primeira falha: pergunta e sugere assuntos da base em vez de oferecer o chamado.
+    assert _done(events)["action"] == "clarify"
+    assert "VPN corporativa" in app.state.fake_llm.calls[-1][0].content
+    assert "Não ofereça abrir chamado agora" in app.state.fake_llm.calls[-1][0].content
+
+    # Segunda falha seguida: aí sim o texto do modelo, que oferece o chamado, chega ao usuário.
+    events = await _say(client, conversation_id, "é o servidor de impressão do andar 3")
+
     assert _done(events)["action"] == "not_found"
     assert _text(events).startswith("Não achei isso nos manuais")
 
@@ -233,13 +241,17 @@ async def test_senha_digitada_nao_chega_ao_banco_nem_ao_modelo(
 async def test_sem_trecho_na_base_o_modelo_diz_que_nao_achou(client, make_user, app):
     await _login(client, make_user)
     conversation_id = await _conversation(client)
-    app.state.fake_llm._handler = lambda m: "[NAO_ENCONTREI] Não achei isso nos manuais."
+    app.state.fake_llm._handler = lambda m: (
+        "Não achei isso nos manuais."
+        if "Situação:" in m[0].content
+        else "[NAO_ENCONTREI] Não achei isso nos manuais."
+    )
 
     events = await _say(client, conversation_id, "qual a política de férias?")
 
-    assert _done(events)["action"] == "not_found"
+    assert _done(events)["action"] == "clarify"
     assert _text(events).startswith("Não achei isso nos manuais")
-    assert len(app.state.fake_llm.calls) == 1
+    assert len(app.state.fake_llm.calls) == 2  # resposta + texto de esclarecimento
     assert "<fontes>" in app.state.fake_llm.calls[0][-1].content  # sem trechos, bloco vazio
 
 
@@ -262,7 +274,7 @@ async def test_modelo_que_recusa_ou_nao_cita_vira_nao_encontrei(
 
     events = await _say(client, conversation_id, "quanto tempo dura a sessão da VPN")
 
-    assert _done(events)["action"] == "not_found"
+    assert _done(events)["action"] == "clarify"
     assert _text(events) == "Não achei isso nos manuais."
     assert next(data for name, data in events if name == "sources")["citations"] == []
 
@@ -285,7 +297,7 @@ async def test_resposta_que_a_conferencia_reprova_nao_e_entregue(
 
     events = await _say(client, conversation_id, "quanto tempo dura a sessão da VPN")
 
-    assert _done(events)["action"] == "not_found"
+    assert _done(events)["action"] == "clarify"
     assert "30 dias" not in _text(events)
 
 
@@ -380,7 +392,7 @@ async def test_usuario_comum_nao_recebe_resposta_de_manual_restrito_a_ti(
 
     tecnico = await _say(client, await _conversation(client), pergunta)
 
-    assert _done(comum)["action"] == "not_found"
+    assert _done(comum)["action"] == "clarify"
     assert _done(tecnico)["action"] == "answered"
 
 
