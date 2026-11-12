@@ -3,7 +3,6 @@ import {
   BadgeCheck,
   Binary,
   Bot,
-  ChevronRight,
   Database,
   FileText,
   FileUp,
@@ -128,16 +127,22 @@ function StepNode({
       aria-pressed={active}
       style={{ "--delay": `${order * 0.12}s` } as CSSProperties}
       className={cn(
-        "flex min-w-0 flex-1 cursor-pointer flex-col items-center rounded-lg border px-1.5 py-1.5 text-center transition-colors",
-        active ? "border-accent bg-accent-soft" : "border-border bg-surface hover:bg-surface-2",
+        "group flex min-w-0 flex-1 cursor-pointer flex-col items-center gap-1 text-center",
         ms !== undefined && "chart-fade",
       )}
     >
-      <span className="flex max-w-full items-center gap-1.5 text-sm font-medium">
-        <Icon aria-hidden className={cn("size-3.5 shrink-0", active ? "text-accent" : "text-muted")} />
+      <span
+        aria-hidden
+        className={cn(
+          "h-[3px] w-full rounded-full transition-colors",
+          active ? "bg-accent" : "bg-border group-hover:bg-muted",
+        )}
+      />
+      <span className={cn("flex max-w-full items-center gap-1 text-xs", active ? "font-semibold" : "font-medium")}>
+        <Icon aria-hidden className={cn("size-3 shrink-0", active ? "text-accent" : "text-muted")} />
         <span className="truncate">{step.title}</span>
       </span>
-      <span className="max-w-full truncate text-[11px] leading-tight text-muted">
+      <span className="max-w-full truncate text-[10px] leading-tight text-muted">
         {ms !== undefined ? `${formatNumber(ms, 1)} ms` : step.hint}
       </span>
     </button>
@@ -160,9 +165,9 @@ function Lane({
   return (
     <div className="grid items-center gap-x-3 gap-y-1 lg:grid-cols-[5.5rem_1fr]">
       <h3 className="text-xs font-medium tracking-wide text-muted uppercase">{title}</h3>
-      <div className="flex flex-wrap items-stretch gap-1 lg:flex-nowrap">
+      <div className="flex flex-wrap items-stretch gap-x-3 gap-y-3 lg:flex-nowrap">
         {steps.map((step, index) => (
-          <div key={step.key} className="flex min-w-[6.5rem] flex-1 items-stretch gap-0.5 lg:min-w-0">
+          <div key={step.key} className="flex min-w-[6.5rem] flex-1 items-stretch lg:min-w-0">
             <StepNode
               step={step}
               active={selected === step.key}
@@ -170,9 +175,6 @@ function Lane({
               order={index}
               onSelect={() => onSelect(step.key)}
             />
-            {index < steps.length - 1 && (
-              <ChevronRight aria-hidden className="hidden size-3.5 shrink-0 self-center text-muted lg:block" />
-            )}
           </div>
         ))}
       </div>

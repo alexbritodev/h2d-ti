@@ -34,7 +34,7 @@ describe("RagFlowStrip", () => {
     expect(status("Busca nos manuais")).toBe("ok");
     expect(status("Modelo")).toBe("warn");
     expect(status("Conferir")).toBe("skip"); // não rodou neste turno
-    expect(screen.getByText("8 trecho(s) de 2 manual(is): Servidor Linux")).toBeTruthy();
-    expect(screen.getByText("Pediu detalhes")).toBeTruthy();
+    expect(screen.getByText("ok: 8 trecho(s) de 2 manual(is): Servidor Linux")).toBeTruthy();
+    expect(screen.getByText(/Pediu detalhes/)).toBeTruthy();
   });
 });

@@ -166,7 +166,7 @@ export function ChatPage() {
         title="Assistente"
         description="Descreva o problema e receba a resposta com base nos manuais de TI."
         actions={
-          <div className="flex gap-2">
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
             {(messages.length > 0 || closed) && (
               <Button className="border border-border bg-surface" onClick={newConversation}>
                 <Plus aria-hidden className="size-4" />
@@ -186,9 +186,9 @@ export function ChatPage() {
       />
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <div className="space-y-4 xl:col-span-2">
-        <Card className="flex min-h-[520px] flex-col">
-          <ol aria-label="Conversa" className="flex-1 space-y-5 overflow-y-auto p-5">
+        <div className="min-w-0 space-y-4 xl:col-span-2">
+        <Card className="flex min-h-[60dvh] flex-col sm:min-h-[520px]">
+          <ol aria-label="Conversa" className="flex-1 space-y-5 overflow-y-auto p-3 sm:p-5">
             <li className="flex gap-3">
               <BotAvatar />
               <p className="min-w-0 flex-1">{GREETING}</p>
@@ -196,7 +196,7 @@ export function ChatPage() {
             {messages.map((message) =>
               message.role === "user" ? (
                 <li key={message.key} className="flex justify-end">
-                  <p className="max-w-[80%] rounded-2xl rounded-br-sm bg-accent px-4 py-2.5 whitespace-pre-wrap text-accent-fg">
+                  <p className="max-w-[90%] rounded-2xl sm:max-w-[80%] rounded-br-sm bg-accent px-4 py-2.5 whitespace-pre-wrap text-accent-fg">
                     {message.content}
                   </p>
                 </li>
@@ -295,7 +295,7 @@ export function ChatPage() {
             </p>
           )}
 
-          <form onSubmit={(event) => void send(event)} className="flex gap-2 border-t border-border p-4">
+          <form onSubmit={(event) => void send(event)} className="flex gap-2 border-t border-border p-3 sm:p-4">
             <Input
               aria-label="Sua mensagem"
               placeholder={closed ? "Conversa encerrada. Comece uma nova." : "Descreva o problema. Nunca informe sua senha."}
@@ -326,7 +326,7 @@ export function ChatPage() {
         )}
         </div>
 
-        <Card className="self-start">
+        <Card className="min-w-0 self-start">
           <CardHeader title="Fontes consultadas" description="Trechos usados na última resposta" />
           {lastSources.length === 0 ? (
             <p className="p-4 text-muted">As fontes aparecem aqui quando o assistente responde.</p>

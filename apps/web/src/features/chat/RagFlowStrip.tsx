@@ -1,5 +1,3 @@
-import { ChevronRight } from "lucide-react";
-
 import { Card } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
 
@@ -54,32 +52,21 @@ export function RagFlowStrip({ steps, action }: { steps: FlowStep[] | null; acti
           ? "· última pergunta (só o administrador vê)"
           : "· aparece depois da primeira pergunta (só o administrador vê)"}
       </p>
-      <ol aria-label="Etapas do RAG" className="flex items-stretch gap-0.5 overflow-x-auto">
-        {STAGES.map((stage, index) => {
+      <ol aria-label="Etapas do RAG" className="grid grid-cols-4 gap-x-1.5 gap-y-2 sm:grid-cols-8">
+        {STAGES.map((stage) => {
           const step = byId.get(stage.id);
           const status: FlowStatus = step?.status ?? "skip";
           const detail = stage.id === "outcome" && action ? OUTCOME[action] : step?.detail;
           return (
-            <li key={stage.id} className="flex min-w-[88px] flex-1 items-stretch" data-status={status}>
-              <div
-                title={detail || undefined}
-                className={cn(
-                  "min-w-0 flex-1 rounded-md border border-border bg-surface-2 px-2 py-1",
-                  !step && "opacity-60",
-                )}
-              >
-                <span className="flex items-center gap-1 text-[11px] font-medium">
-                  <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", DOT[status])} />
-                  <span className="truncate">{stage.label}</span>
-                </span>
-                <span className="sr-only">{STATUS_TEXT[status]}</span>
-                <span className="block truncate text-[10px] leading-tight text-muted">
-                  {detail || (step ? "ok" : "—")}
-                </span>
-              </div>
-              {index < STAGES.length - 1 && (
-                <ChevronRight aria-hidden className="size-3 shrink-0 self-center text-muted" />
-              )}
+            <li key={stage.id} className="min-w-0" data-status={status} title={detail || undefined}>
+              <span aria-hidden className={cn("block h-[3px] rounded-full", DOT[status])} />
+              <span className={cn("mt-1 block truncate text-[10px] leading-tight", step ? "font-medium" : "text-muted")}>
+                {stage.label}
+              </span>
+              <span className="sr-only">
+                {STATUS_TEXT[status]}
+                {detail ? `: ${detail}` : ""}
+              </span>
             </li>
           );
         })}

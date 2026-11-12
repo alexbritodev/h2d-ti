@@ -292,7 +292,7 @@ export function AppShell({ user }: { user: User }) {
             <MobileMenu role={user.role} />
             <Breadcrumb />
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
             <button
               type="button"
               onClick={() => setSearchOpen(true)}
@@ -324,7 +324,7 @@ export function AppShell({ user }: { user: User }) {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+        <main className="flex-1 overflow-y-auto p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-4 lg:p-6">
           <div className="mx-auto max-w-7xl">
             <Outlet />
           </div>

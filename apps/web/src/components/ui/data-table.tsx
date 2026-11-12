@@ -113,7 +113,7 @@ export function DataTable<T>({
                     aria-sort={
                       sortedHere === 1 ? "ascending" : sortedHere === -1 ? "descending" : undefined
                     }
-                    className={cn("px-4 py-2.5 font-medium whitespace-nowrap", column.className)}
+                    className={cn("px-3 py-2.5 font-medium whitespace-nowrap sm:px-4", column.className)}
                   >
                     {column.sortValue ? (
                       <button
@@ -165,7 +165,7 @@ export function DataTable<T>({
                     </td>
                   )}
                   {columns.map((column) => (
-                    <td key={column.key} className={cn("px-4 py-3 align-middle", column.className)}>
+                    <td key={column.key} className={cn("px-3 py-3 align-middle sm:px-4", column.className)}>
                       {column.render(row)}
                     </td>
                   ))}
@@ -185,7 +185,7 @@ export function DataTable<T>({
       </div>
 
       {sorted.length > pageSize && (
-        <div className="flex items-center justify-between border-t border-border px-4 py-2.5 text-xs text-muted">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-3 py-2.5 text-xs text-muted sm:px-4">
           <span>
             {page * pageSize + 1}–{Math.min((page + 1) * pageSize, sorted.length)} de{" "}
             {sorted.length}
@@ -196,7 +196,7 @@ export function DataTable<T>({
               aria-label="Página anterior"
               disabled={page === 0}
               onClick={() => setPage(page - 1)}
-              className="flex size-8 cursor-pointer items-center justify-center rounded-lg hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex size-10 cursor-pointer items-center justify-center rounded-lg hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <ChevronLeft aria-hidden className="size-4" />
             </button>
@@ -208,7 +208,7 @@ export function DataTable<T>({
               aria-label="Próxima página"
               disabled={page >= pageCount - 1}
               onClick={() => setPage(page + 1)}
-              className="flex size-8 cursor-pointer items-center justify-center rounded-lg hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex size-10 cursor-pointer items-center justify-center rounded-lg hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <ChevronRight aria-hidden className="size-4" />
             </button>

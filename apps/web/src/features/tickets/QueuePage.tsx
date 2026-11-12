@@ -97,7 +97,7 @@ export function QueuePage() {
               aria-pressed={view === item.value}
               onClick={() => setView(item.value)}
               className={cn(
-                "h-8 cursor-pointer rounded-full border px-3 text-sm transition-colors",
+                "h-9 cursor-pointer rounded-full border px-3 text-sm transition-colors sm:h-8",
                 view === item.value
                   ? "border-accent bg-accent-soft font-medium"
                   : "border-border bg-surface text-muted hover:text-text",
@@ -110,7 +110,7 @@ export function QueuePage() {
             </button>
           ))}
         </div>
-        <div className="w-44">
+        <div className="w-full sm:w-44">
           <Select
             aria-label="Filtrar por prioridade"
             value={priority}
