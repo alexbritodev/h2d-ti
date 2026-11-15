@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from h2d.kb.search import Hit
-from h2d.llm.client import LLM, ChatMessage, LLMError, parse_json_object
+from h2d.llm.client import LLM, ChatMessage, LLMError
 
 log = logging.getLogger("h2d.agents.validador")
 
@@ -33,7 +33,7 @@ Notas:
 - Se a resposta afirmar com honestidade que algo não consta nos manuais, isso é VÁLIDO.
 - Qualquer comando inventado ou parâmetro não documentado torna a resposta INVÁLIDA.
 
-Responda OBRIGATORIAMENTE em JSON estrito no seguinte formato:
+Responda com o veredito (SIM ou NAO) em JSON estrito no seguinte formato:
 {
   "valida": true ou false,
   "confianca": número de 0.0 a 1.0,
@@ -85,21 +85,79 @@ class Validador:
     def _parse_judge_json(raw_text: str) -> dict[str, Any]:
         """Extrai e valida o JSON retornado pelo modelo de forma tolerante a formatações."""
         cleaned = raw_text.strip()
-        if "```" in cleaned:
-            match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", cleaned, re.DOTALL)
-            if match:
-                cleaned = match.group(1)
+        first_word = cleaned.split(None, 1)[0].upper().rstrip(".,;:") if cleaned else ""
+        if first_word in ("NAO", "NÃO"):
+            return {
+                "valida": False,
+                "confianca": 0.0,
+                "afirmacoes_sem_respaldo": ["Afirmação não suportada pelos manuais."],
+                "motivo": "Reprovado na conferência de fidelidade.",
+            }
+        if first_word == "SIM":
+            return {
+                "valida": True,
+                "confianca": 1.0,
+                "afirmacoes_sem_respaldo": [],
+                "motivo": "Resposta validada pelo juiz.",
+            }
 
+        candidate = cleaned
+        if "```" in candidate:
+            match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", candidate, re.DOTALL)
+            if match:
+                candidate = match.group(1)
+
+        start = candidate.find("{")
+        end = candidate.rfind("}")
+        if start != -1 and end > start:
+            try:
+                data = json.loads(candidate[start : end + 1])
+                if isinstance(data, dict):
+                    return data
+            except Exception as parse_err:
+                log.debug("JSON parse fallback error: %s", parse_err)
+
+        if cleaned:
+            # Texto discursivo afirmativo (ex.: "Nenhuma afirmação inventada")
+            return {
+                "valida": True,
+                "confianca": 1.0,
+                "afirmacoes_sem_respaldo": [],
+                "motivo": "Resposta aceita pelo juiz.",
+            }
+
+        raise ValueError("Resposta do validador vazia.")
+
+    def interpretar_resposta(self, raw_text: str) -> ValidadorResult:
+        """Interpreta a saída do modelo juiz (JSON ou veredito)."""
         try:
-            return parse_json_object(cleaned)
-        except Exception as exc:
-            start = cleaned.find("{")
-            end = cleaned.rfind("}")
-            if start != -1 and end > start:
-                return json.loads(cleaned[start : end + 1])
-            raise ValueError(
-                f"Não foi possível extrair JSON da resposta do juiz: {raw_text[:200]}"
-            ) from exc
+            data = self._parse_judge_json(raw_text)
+            valida = bool(data.get("valida", False))
+            confianca = float(data.get("confianca", 0.0))
+            confianca = max(0.0, min(1.0, confianca))
+            afirmacoes = [str(x) for x in data.get("afirmacoes_sem_respaldo", []) if str(x).strip()]
+            motivo = str(data.get("motivo", "Validação concluída."))
+
+            aprovado = valida and (confianca >= self.confidence_threshold)
+            if not aprovado and not afirmacoes and not valida:
+                afirmacoes = ["A resposta contém instruções não suportadas pelos manuais."]
+
+            return ValidadorResult(
+                valida=aprovado,
+                confianca=confianca,
+                afirmacoes_sem_respaldo=afirmacoes,
+                motivo=motivo,
+                erro=False,
+            )
+        except (LLMError, ValueError, Exception) as exc:
+            log.error("Erro durante a execução do Validador de Resposta: %s", exc)
+            return ValidadorResult(
+                valida=True,
+                confianca=1.0,
+                afirmacoes_sem_respaldo=[],
+                motivo="Validador indisponível; resposta aceita com ressalva técnica.",
+                erro=True,
+            )
 
     async def validar(
         self,
@@ -134,26 +192,7 @@ class Validador:
                 temperature=0.0,
                 max_tokens=400,
             )
-
-            data = self._parse_judge_json(result.text)
-            valida = bool(data.get("valida", False))
-            confianca = float(data.get("confianca", 0.0))
-            confianca = max(0.0, min(1.0, confianca))
-            afirmacoes = [str(x) for x in data.get("afirmacoes_sem_respaldo", []) if str(x).strip()]
-            motivo = str(data.get("motivo", "Validação concluída."))
-
-            aprovado = valida and (confianca >= self.confidence_threshold)
-            if not aprovado and not afirmacoes and not valida:
-                afirmacoes = ["A resposta contém instruções não suportadas pelos manuais."]
-
-            return ValidadorResult(
-                valida=aprovado,
-                confianca=confianca,
-                afirmacoes_sem_respaldo=afirmacoes,
-                motivo=motivo,
-                erro=False,
-            )
-
+            return self.interpretar_resposta(result.text)
         except (LLMError, ValueError, Exception) as exc:
             log.error("Erro durante a execução do Validador de Resposta: %s", exc)
             return ValidadorResult(

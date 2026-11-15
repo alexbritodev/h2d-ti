@@ -106,6 +106,7 @@ async def _own_conversation(
     # 404 também para conversa de outra pessoa: não revela que ela existe.
     if conversation is None or conversation.user_id != user.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Conversa não encontrada")
+    await session.refresh(conversation)
     return conversation
 
 
@@ -124,6 +125,7 @@ async def create_conversation(session: SessionDep, user: CurrentUser) -> Convers
 async def list_conversations(session: SessionDep, user: CurrentUser) -> list[ConversationOut]:
     rows = await session.scalars(
         select(Conversation)
+        .execution_options(populate_existing=True)
         .where(Conversation.user_id == user.id)
         .order_by(Conversation.updated_at.desc())
         .limit(50)
@@ -213,6 +215,7 @@ async def send_message(
         try:
             result: TurnResult = await task
             await session.commit()
+            await session.refresh(conversation)
             ticket = None
             if conversation.status is ConversationStatus.ESCALATED:
                 # Escalonou (tema crítico, pedido de humano...): o chamado nasce na mesma resposta.
@@ -224,6 +227,7 @@ async def send_message(
                     reason=result.reason or "escalonamento",
                 )
                 await session.commit()
+                await session.refresh(conversation)
         except ChatLimitError as error:
             await session.rollback()
             yield _sse("error", {"detail": str(error)})

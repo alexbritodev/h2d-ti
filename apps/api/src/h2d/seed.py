@@ -137,8 +137,6 @@ async def _seed_users(session: AsyncSession, password: str) -> dict[str, User]:
                 is_vip=is_vip,
             )
             session.add(users[email])
-        else:
-            users[email].password_hash = password_hash
     await session.flush()
     return users
 

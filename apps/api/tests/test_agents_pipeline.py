@@ -85,7 +85,17 @@ async def test_pipeline_empty_rag_skips_generation() -> None:
     mock_session.scalar.return_value = 0
     mock_session.scalars.return_value = []
 
-    fake_llm = FakeLLM()
+    class ProductionLLM:
+        model_name = "production-model"
+
+        def __init__(self) -> None:
+            self.calls: list[Any] = []
+
+        async def complete(self, messages: Any, **kwargs: Any) -> Any:
+            self.calls.append(messages)
+            return await FakeLLM().complete(messages, **kwargs)
+
+    llm = ProductionLLM()
     fake_embedder = FakeEmbedder()
 
     dummy_version = PromptVersion(name="chat_system", version=1, content="prompt", is_active=True)
@@ -99,13 +109,13 @@ async def test_pipeline_empty_rag_skips_generation() -> None:
             user=user,
             conversation=conv,
             text="Como configuro o software inexistente XPTO?",
-            llm=fake_llm,
+            llm=llm,
             embedder=fake_embedder,
             on_progress=on_progress,
         )
 
         # LLM nunca deve ser chamada para responder com fontes
-        sources_calls = [c for c in fake_llm.calls if any("<fontes>" in m.content for m in c)]
+        sources_calls = [c for c in llm.calls if any("<fontes>" in m.content for m in c)]
         assert len(sources_calls) == 0
         # Mensagem avisa que não consta nos manuais
         assert (

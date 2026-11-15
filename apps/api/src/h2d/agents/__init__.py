@@ -14,6 +14,7 @@ from h2d.agents.guardiao import GUARDIAO_BLOCKED_MESSAGE, Guardiao, GuardiaoResu
 from h2d.agents.validador import (
     NOT_FOUND_MANUALS_MESSAGE,
     REGENERATE_RESTRICTIVE_PROMPT,
+    VALIDADOR_SYSTEM_PROMPT,
     Validador,
     ValidadorResult,
 )
@@ -44,6 +45,7 @@ __all__ = [
     "GUARDIAO_BLOCKED_MESSAGE",
     "NOT_FOUND_MANUALS_MESSAGE",
     "REGENERATE_RESTRICTIVE_PROMPT",
+    "VALIDADOR_SYSTEM_PROMPT",
     "AgentName",
     "AgentProgressEvent",
     "AgentStatus",
