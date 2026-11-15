@@ -88,9 +88,7 @@ async def test_pipeline_empty_rag_skips_generation() -> None:
     fake_llm = FakeLLM()
     fake_embedder = FakeEmbedder()
 
-    dummy_version = PromptVersion(
-        name="chat_system", version=1, content="prompt", is_active=True
-    )
+    dummy_version = PromptVersion(name="chat_system", version=1, content="prompt", is_active=True)
     with (
         patch("h2d.chat.service.get_prompt_version", return_value=dummy_version),
         patch("h2d.chat.service.search_chunks", return_value=[]),
@@ -158,9 +156,7 @@ async def test_pipeline_full_flow_with_validator_approval() -> None:
 
     fake_llm = FakeLLM(llm_handler)
     fake_embedder = FakeEmbedder()
-    dummy_version = PromptVersion(
-        name="chat_system", version=1, content="prompt", is_active=True
-    )
+    dummy_version = PromptVersion(name="chat_system", version=1, content="prompt", is_active=True)
 
     with (
         patch("h2d.chat.service.get_prompt_version", return_value=dummy_version),

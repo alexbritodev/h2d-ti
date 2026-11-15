@@ -108,9 +108,7 @@ async def test_guardiao_semantic_layer_catches_subtle_offense(guardiao: Guardiao
     def llm_handler(messages) -> str:
         prompt_content = messages[-1].content
         if "preconceito velado" in prompt_content:
-            return (
-                '{"aprovado": false, "categoria": "preconceito", "motivo": "Ironia detectada"}'
-            )
+            return '{"aprovado": false, "categoria": "preconceito", "motivo": "Ironia detectada"}'
         return '{"aprovado": true, "categoria": "ok", "motivo": "Pergunta legítima"}'
 
     fake_llm = FakeLLM(llm_handler)
