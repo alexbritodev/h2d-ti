@@ -25,12 +25,67 @@ O detalhe item por item está no [TODO](docs/TODO.md).
 
 - **Base de conhecimento:** o administrador envia manuais (`.md`, `.txt`, `.pdf` ou `.docx`) em *Administração → Documentos*. Um worker divide o texto por títulos, gera os vetores e publica a versão de uma vez só. Arquivo repetido não é reprocessado, e a versão anterior só sai depois da nova estar pronta.
 - **Permissão:** cada documento é público ou restrito à TI. Usuário comum nunca recebe trecho restrito, nem na busca, nem no chat, nem na biblioteca (o filtro roda dentro do SQL e tem teste automatizado).
-- **Assistente:** responde só com base nos trechos encontrados, cita a fonte de cada afirmação e confere se a resposta é sustentada por eles. Se não sabe, diz que não encontrou e oferece abrir um chamado.
+- **Assistente e Agentes Inteligentes:** fluxo com dois agentes dedicados (Guardião de Entrada e Validador de Resposta) que filtram ofensas antes da LLM e barram alucinações antes de responder ao usuário, com visualização do progresso em tempo real no chat.
 - **Dados sensíveis:** senha, CPF, cartão e token são escondidos antes de qualquer gravação, log ou envio ao modelo.
 - **Chamados:** a conversa vira chamado com categoria, impacto e urgência sugeridos pelo modelo. A **prioridade sai de uma matriz em código**, o prazo de SLA é calculado em código e o técnico é escolhido por regras (habilidade, horário, capacidade e menor carga). Sem confiança ou sem técnico elegível, vai para a **triagem manual**. O motivo de cada atribuição fica na linha do tempo.
 - **Papéis:** usuário (vê os próprios chamados), técnico (atende os que lhe cabem) e administrador (cadastros, ingestão, reatribuição).
 - **Convite de usuário:** o administrador informa nome, e-mail e papel; a pessoa recebe um e-mail (no tema do app) com um link para definir a própria senha. O link vale 48 horas (configurável, mínimo 24), só funciona uma vez e pode ser reenviado (o anterior deixa de valer). A conta nasce sem senha utilizável, e no banco fica só o hash do token.
 - **Dashboard:** defleção do assistente, custo por conversa, volume por dia e SLA cumprido, em números reais do banco (técnico e administrador). Cada número tem definição fixa e teste contra SQL escrito à mão.
+
+## Pipeline de Agentes Inteligentes do Chat
+
+O chat opera com um pipeline encadeado de proteção e auditoria de respostas, com emissão de eventos em tempo real via Server-Sent Events (SSE) para o frontend:
+
+```text
+Mensagem do Usuário
+       │
+       ▼
+[Agente 1: Guardião de Entrada] ────(Reprovado)───► Resposta educada de recusa (Sem RAG / Sem LLM)
+       │ (Aprovado)
+       ▼
+[Recuperação RAG nos Manuais] ──────(Vazio)───────► Informa ausência nos manuais (Sem LLM)
+       │ (Trechos encontrados)
+       ▼
+[Geração da Resposta pela LLM]
+       │
+       ▼
+[Agente 2: Validador de Resposta] ──(Inválida)────► Regeneração restritiva única
+       │ (Válida)                                         │
+       │                                            (Reprovada de novo)
+       ▼                                                  ▼
+Resposta final ao colaborador                  Oferece chamado à equipe técnica
+```
+
+### Agente 1: Guardião de Entrada (Filtro de Conteúdo)
+- **Localização:** `apps/api/src/h2d/agents/guardiao.py` e `guardiao_terms.json`.
+- **Estratégia em duas camadas:**
+  1. *Camada rápida:* normalização de acentos, desofuscação de leet speak (`p0rr4` -> `porra`), colapso de repetições exageradas (`poooorrrra` -> `porra`) e espaços artificiais (`p o r r a` -> `porra`), com proteção ativa para termos técnicos de TI (`kill process`, `master/slave`, `abortar`, `dump`).
+  2. *Camada semântica:* chamada à LLM quando a camada rápida não detecta infrações explícitas, identificando ironia, ódio velado ou assédio sutil.
+- **Ação em reprovação:** bloqueia a execução imediatamente, sem acionar o RAG nem a LLM de geração, devolvendo uma recusa educada ao colaborador.
+
+### Agente 2: Validador de Resposta (Anti-alucinação)
+- **Localização:** `apps/api/src/h2d/agents/validador.py`.
+- **Auditoria de 4 critérios:** sustentação fática pelos manuais, ausência de instruções inventadas, pertinência à pergunta e não-contradição com a base.
+- **Decisão:** avalia o índice de confiança retornado em JSON estrito pelo juiz. Se reprovada, aciona **uma tentativa de regeneração restritiva**. Se ainda assim não constar na base, informa com segurança a ausência e sugere abertura de chamado técnico.
+
+### Visualização do Progresso em Tempo Real (Painel de Agentes)
+- **Componente:** `apps/web/src/features/chat/AgentProgressPanel.tsx`.
+- **Streaming SSE:** eventos `agent_progress` emitidos instantaneamente pelo backend:
+  `{ agente: "guardiao"|"rag"|"llm"|"validador", status: "aguardando"|"em_andamento"|"aprovado"|"reprovado"|"erro", mensagem: string, detalhes?: object, timestamp: string }`
+- **Interface:** timeline/stepper responsivo com status visual animado (spinner em andamento, check verde, alerta/X vermelho), exibição clara do motivo de eventuais bloqueios e detalhes técnicos expansíveis (confiança, categoria, manuais usados), permanecendo recolhível para consulta após o término da resposta.
+
+### Variáveis de Ambiente dos Agentes (.env)
+
+```bash
+# Liga/desliga cada agente de forma independente
+GUARDIAO_ENABLED=true
+GUARDIAO_FAST_ONLY=false
+GUARDIAO_MODEL=openrouter/free
+
+VALIDADOR_ENABLED=true
+VALIDADOR_MODEL=openrouter/free
+VALIDADOR_CONFIDENCE_THRESHOLD=0.7
+```
 
 ## Documentos
 
@@ -106,6 +161,16 @@ docker compose exec api pyright
 
 ```bash
 docker compose exec api pytest -q
+```
+
+**Testes dos Agentes (Guardião, Validador e Pipeline):**
+
+```bash
+# Backend (Guardião, Validador e Pipeline de integração):
+uv --directory apps/api run pytest tests/test_guardiao.py tests/test_validador.py tests/test_agents_pipeline.py -v
+
+# Frontend (Painel de visualização em tempo real):
+npm.cmd --prefix apps/web test src/features/chat/AgentProgressPanel.test.tsx
 ```
 
 **Verificar o frontend:**

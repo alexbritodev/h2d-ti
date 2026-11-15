@@ -16,6 +16,17 @@ export type ChatAction =
 
 export type FlowStatus = "ok" | "warn" | "fail" | "skip";
 
+export type AgentName = "guardiao" | "rag" | "llm" | "validador";
+export type AgentStatus = "aguardando" | "em_andamento" | "aprovado" | "reprovado" | "erro";
+
+export interface AgentProgressEvent {
+  agente: AgentName;
+  status: AgentStatus;
+  mensagem: string;
+  detalhes?: Record<string, unknown>;
+  timestamp: string;
+}
+
 /** Uma etapa do fluxo do RAG no turno (só o administrador recebe). */
 export interface FlowStep {
   id: string;
@@ -27,6 +38,7 @@ export interface StreamHandlers {
   onToken: (text: string) => void;
   onSources: (citations: Citation[]) => void;
   onFlow?: (steps: FlowStep[]) => void;
+  onAgentProgress?: (event: AgentProgressEvent) => void;
   onDone: (done: {
     message_id: string;
     action: ChatAction;
@@ -100,6 +112,7 @@ export async function sendMessage(
       if (parsed.event === "token") handlers.onToken(String(data.text ?? ""));
       else if (parsed.event === "sources") handlers.onSources((data.citations as Citation[]) ?? []);
       else if (parsed.event === "flow") handlers.onFlow?.((data.steps as FlowStep[]) ?? []);
+      else if (parsed.event === "agent_progress") handlers.onAgentProgress?.(data as unknown as AgentProgressEvent);
       else if (parsed.event === "done") handlers.onDone(data as unknown as Parameters<StreamHandlers["onDone"]>[0]);
       else if (parsed.event === "error") handlers.onError(String(data.detail ?? "Erro ao responder."));
     }

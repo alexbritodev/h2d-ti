@@ -183,15 +183,35 @@ async def send_message(
 
     async def stream() -> AsyncIterator[str]:
         yield _sse("status", {"step": "thinking"})
+        queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
+
+        async def on_progress(event: dict[str, Any]) -> None:
+            await queue.put(event)
+
+        async def run_pipeline() -> TurnResult:
+            try:
+                return await handle_user_message(
+                    session,
+                    user=user,
+                    conversation=conversation,
+                    text=body.content,
+                    llm=llm,
+                    embedder=embedder,
+                    on_progress=on_progress,
+                )
+            finally:
+                await queue.put(None)
+
+        task = asyncio.create_task(run_pipeline())
+
+        while True:
+            item = await queue.get()
+            if item is None:
+                break
+            yield _sse("agent_progress", item)
+
         try:
-            result: TurnResult = await handle_user_message(
-                session,
-                user=user,
-                conversation=conversation,
-                text=body.content,
-                llm=llm,
-                embedder=embedder,
-            )
+            result: TurnResult = await task
             await session.commit()
             ticket = None
             if conversation.status is ConversationStatus.ESCALATED:
