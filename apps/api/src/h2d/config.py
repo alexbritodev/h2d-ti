@@ -70,7 +70,7 @@ class Settings(BaseSettings):
                     else self.openrouter_model
                 )
             return self.openrouter_model
-        return self.gemini_model
+        return self.openrouter_model
 
     @model_validator(mode="after")
     def _production_is_safe(self) -> Self:

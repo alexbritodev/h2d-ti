@@ -43,10 +43,10 @@ describe("ApiStatus", () => {
     const trigger = await screen.findByRole("status", { name: "Status dos serviços" });
     expect(trigger.textContent).toContain("Backend");
     expect(trigger.textContent).toContain("Banco");
-    expect(trigger.textContent).toContain("Gemini");
+    expect(trigger.textContent).toContain("OpenRouter");
 
     await waitFor(() => {
-      expect(trigger.getAttribute("title")).toContain("Gemini (IA): Chave não configurada");
+      expect(trigger.getAttribute("title")).toContain("OpenRouter (IA): Chave não configurada");
     });
 
     const user = userEvent.setup();
