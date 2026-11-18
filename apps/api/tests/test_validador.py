@@ -137,3 +137,19 @@ async def test_validador_llm_error_fallback_resilient() -> None:
     # Validador não derruba o sistema
     assert res.erro is True
     assert "indisponível" in res.motivo
+
+
+@pytest.mark.parametrize(
+    ("texto", "esperado"),
+    [
+        ("Resposta reprovada pois contradiz o manual.", False),
+        ("A resposta é inválida e não é sustentada pelas fontes.", False),
+        ("Possui dados sem respaldo nos manuais.", False),
+        ("Nenhuma afirmação inventada.", True),
+        ("Nenhuma afirmação sem respaldo encontrada.", True),
+    ],
+)
+def test_validador_discursive_fallback_distinguishes_rejection(texto: str, esperado: bool) -> None:
+    validador = Validador(confidence_threshold=0.7)
+    res = validador.interpretar_resposta(texto)
+    assert res.valida is esperado

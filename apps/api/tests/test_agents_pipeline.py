@@ -15,7 +15,7 @@ from h2d.chat.service import handle_user_message
 from h2d.kb.embeddings import FakeEmbedder
 from h2d.kb.search import Hit
 from h2d.llm.client import FakeLLM
-from h2d.models import Conversation, PromptVersion, Role, User
+from h2d.models import Conversation, LlmCall, PromptVersion, Role, User
 
 
 def _mock_user_and_conv() -> tuple[User, Conversation]:
@@ -196,3 +196,101 @@ async def test_pipeline_full_flow_with_validator_approval() -> None:
 
         validador_events = [e for e in events if e["agente"] == "validador"]
         assert any(e["status"] == "aprovado" for e in validador_events)
+
+
+@pytest.mark.asyncio
+async def test_pipeline_critical_triage_closes_all_stages() -> None:
+    """Triagem crítica deve concluir os 4 estágios da timeline sem deixar etapas aguardando."""
+    user, conv = _mock_user_and_conv()
+    events: list[dict[str, Any]] = []
+
+    async def on_progress(ev: dict[str, Any]) -> None:
+        events.append(ev)
+
+    mock_session = AsyncMock(spec=AsyncSession)
+    mock_session.scalar.return_value = 0
+    mock_session.scalars.return_value = []
+
+    fake_llm = FakeLLM(lambda _messages: "Encaminhando imediatamente para a equipe de TI.")
+    fake_embedder = FakeEmbedder()
+
+    result = await handle_user_message(
+        mock_session,
+        user=user,
+        conversation=conv,
+        text="Acho que sofri um ransomware no computador!",
+        llm=fake_llm,
+        embedder=fake_embedder,
+        on_progress=on_progress,
+    )
+
+    assert result.action == "escalate"
+    latest = {e["agente"]: e["status"] for e in events}
+    assert latest == {
+        "guardiao": "aprovado",
+        "rag": "aprovado",
+        "llm": "aprovado",
+        "validador": "aprovado",
+    }
+
+
+@pytest.mark.asyncio
+async def test_pipeline_greeting_with_empty_rag_reaches_smalltalk_and_logs_guardiao() -> None:
+    """Saudações com RAG vazio não caem no erro de manual ausente e registram LlmCall."""
+    user, conv = _mock_user_and_conv()
+    events: list[dict[str, Any]] = []
+
+    async def on_progress(ev: dict[str, Any]) -> None:
+        events.append(ev)
+
+    mock_session = AsyncMock(spec=AsyncSession)
+    mock_session.scalar.return_value = 0
+    mock_session.scalars.return_value = []
+
+    class ProductionLLM:
+        model_name = "production-model"
+
+        async def complete(self, messages: Any, **kwargs: Any) -> Any:
+            sys_prompt = messages[0].content
+            if "Guardião" in sys_prompt:
+                return await FakeLLM(
+                    lambda _m: '{"aprovado": true, "categoria": "ok", "motivo": "Saudação"}'
+                ).complete(messages, **kwargs)
+            return await FakeLLM(
+                lambda _m: "[CONVERSA] Olá! Como posso ajudar você hoje na TI?"
+            ).complete(messages, **kwargs)
+
+    llm = ProductionLLM()
+    fake_embedder = FakeEmbedder()
+    dummy_version = PromptVersion(name="chat_system", version=1, content="prompt", is_active=True)
+
+    with (
+        patch("h2d.chat.service.get_prompt_version", return_value=dummy_version),
+        patch("h2d.chat.service.search_chunks", return_value=[]),
+        patch("h2d.chat.service.expand_sections", return_value=[]),
+    ):
+        result = await handle_user_message(
+            mock_session,
+            user=user,
+            conversation=conv,
+            text="Olá, tudo bem?",
+            llm=llm,
+            embedder=fake_embedder,
+            on_progress=on_progress,
+        )
+
+    assert result.action == "smalltalk"
+    assert "Olá! Como posso ajudar" in result.message.content
+    latest = {e["agente"]: e["status"] for e in events}
+    assert latest == {
+        "guardiao": "aprovado",
+        "rag": "aprovado",
+        "llm": "aprovado",
+        "validador": "aprovado",
+    }
+    added_calls = [
+        call.args[0]
+        for call in mock_session.add.call_args_list
+        if isinstance(call.args[0], LlmCall)
+    ]
+    assert [c.purpose for c in added_calls] == ["guardiao", "answer"]

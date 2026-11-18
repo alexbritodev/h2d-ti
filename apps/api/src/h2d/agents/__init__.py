@@ -10,7 +10,12 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Literal
 
-from h2d.agents.guardiao import GUARDIAO_BLOCKED_MESSAGE, Guardiao, GuardiaoResult
+from h2d.agents.guardiao import (
+    GUARDIAO_BLOCKED_MESSAGE,
+    GUARDIAO_SYSTEM_PROMPT,
+    Guardiao,
+    GuardiaoResult,
+)
 from h2d.agents.validador import (
     NOT_FOUND_MANUALS_MESSAGE,
     REGENERATE_RESTRICTIVE_PROMPT,
@@ -43,6 +48,7 @@ class AgentProgressEvent:
 
 __all__ = [
     "GUARDIAO_BLOCKED_MESSAGE",
+    "GUARDIAO_SYSTEM_PROMPT",
     "NOT_FOUND_MANUALS_MESSAGE",
     "REGENERATE_RESTRICTIVE_PROMPT",
     "VALIDADOR_SYSTEM_PROMPT",

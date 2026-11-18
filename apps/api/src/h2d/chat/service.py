@@ -6,6 +6,7 @@ citação, sem fidelidade ou sem modelo, o assistente diz que não achou e ofere
 
 import logging
 import re
+import unicodedata
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -17,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from h2d.agents import (
     GUARDIAO_BLOCKED_MESSAGE,
+    GUARDIAO_SYSTEM_PROMPT,
     NOT_FOUND_MANUALS_MESSAGE,
     REGENERATE_RESTRICTIVE_PROMPT,
     VALIDADOR_SYSTEM_PROMPT,
@@ -24,7 +26,9 @@ from h2d.agents import (
     AgentProgressEvent,
     AgentStatus,
     Guardiao,
+    GuardiaoResult,
     Validador,
+    ValidadorResult,
 )
 from h2d.chat import prompts
 from h2d.chat.masking import mask_sensitive
@@ -61,14 +65,79 @@ def _get_agent_llm(model_override: str, default_llm: LLM) -> LLM:
     if not model_override or isinstance(default_llm, FakeLLM):
         return default_llm
     settings = get_settings()
+    if model_override == settings.openrouter_model:
+        return default_llm
     if settings.openrouter_api_key and settings.openrouter_api_key.get_secret_value():
+        fallbacks = [m.strip() for m in settings.openrouter_fallback_models.split(",") if m.strip()]
         return OpenRouterClient(
             settings.openrouter_api_key.get_secret_value(),
             model=model_override,
-            fallbacks=[],
+            fallbacks=fallbacks,
             timeout=settings.llm_timeout_seconds,
         )
     return default_llm
+
+
+_GREETING_PHRASES = (
+    "oi",
+    "ola",
+    "bom dia",
+    "boa tarde",
+    "boa noite",
+    "tudo bem",
+    "tudo bom",
+    "como vai",
+    "obrigado",
+    "obrigada",
+    "valeu",
+    "tchau",
+    "ate mais",
+    "ate logo",
+    "eae",
+    "e ai",
+    "salve",
+    "blz",
+    "beleza",
+    "joia",
+)
+_TECHNICAL_QUERY_TERMS = (
+    "configur",
+    "erro",
+    "senha",
+    "vpn",
+    "instal",
+    "problema",
+    "acesso",
+    "sistema",
+    "servidor",
+    "impressora",
+    "outlook",
+    "email",
+    "e-mail",
+    "rede",
+    "wifi",
+    "wi-fi",
+    "chamado",
+    "reset",
+    "travou",
+    "lento",
+    "nao funciona",
+    "ajuda com",
+)
+
+
+def _is_greeting_or_smalltalk(text: str) -> bool:
+    """Identifica saudações/interações sociais curtas para não barrá-las por falta de manuais."""
+    norm = unicodedata.normalize("NFKD", text).encode("ASCII", "ignore").decode("utf-8").lower()
+    norm = re.sub(r"[^\w\s-]", " ", norm)
+    norm = re.sub(r"\s+", " ", norm).strip()
+    if not norm or len(norm) > 80 or len(norm.split()) > 10:
+        return False
+    if any(term in norm for term in _TECHNICAL_QUERY_TERMS):
+        return False
+    if re.search(r"\bcomo\b", norm) and "como vai" not in norm:
+        return False
+    return any(re.search(rf"\b{re.escape(phrase)}\b", norm) for phrase in _GREETING_PHRASES)
 
 
 def _fidelity_failed(verdict: str) -> bool:
@@ -338,17 +407,65 @@ async def handle_user_message(
         step("outcome", outcome.get(action, "fail"), reason or "")
         return TurnResult(action, message, citations or [], reason, flow)
 
+    async def _save_user_message() -> None:
+        user_message = Message(
+            conversation_id=conversation.id,
+            role=MessageRole.USER,
+            content=masked.text,
+            redactions=masked.redactions,
+            # Horário exato: o now() do banco é igual na transação inteira e embaralharia a ordem.
+            created_at=datetime.now(UTC),
+        )
+        session.add(user_message)
+        if conversation.title is None:
+            conversation.title = masked.text.strip().replace("\n", " ")[:80]
+        await session.flush()
+
     # -------------------------------------------------------------
     # AGENTE 1: GUARDIÃO DE ENTRADA (Filtro de Conteúdo)
     # -------------------------------------------------------------
     if settings.guardiao_enabled:
         is_fake_llm = isinstance(llm, FakeLLM)
-        guardiao_llm = _get_agent_llm(settings.guardiao_model, llm)
-        guardiao_res = await _guardiao.avaliar(
-            masked.text,
-            llm=guardiao_llm if not is_fake_llm else None,
-            fast_only=settings.guardiao_fast_only or is_fake_llm,
-        )
+        guardiao_res = _guardiao.check_fast(masked.text)
+        if guardiao_res is None:
+            if (
+                settings.guardiao_fast_only
+                or is_fake_llm
+                or (await llm_calls_today(session) >= settings.llm_daily_request_limit)
+            ):
+                guardiao_res = GuardiaoResult(
+                    aprovado=True,
+                    categoria="ok",
+                    motivo="Aprovado na verificação de termos rápidos.",
+                    camada="rapida",
+                )
+            else:
+                guardiao_llm = _get_agent_llm(settings.guardiao_model, llm)
+                try:
+                    guardiao_call = await call_llm(
+                        session,
+                        guardiao_llm,
+                        "guardiao",
+                        [
+                            ChatMessage("system", GUARDIAO_SYSTEM_PROMPT),
+                            ChatMessage("user", f"Analise a mensagem a seguir:\n\n{masked.text}"),
+                        ],
+                        user=user,
+                        conversation=conversation,
+                        temperature=0.0,
+                        max_tokens=250,
+                    )
+                    guardiao_res = _guardiao.parse_semantic_response(guardiao_call.text)
+                except LLMError as exc:
+                    log.warning(
+                        "Guardião semântico indisponível (%s). Permitindo com base na rápida.", exc
+                    )
+                    guardiao_res = GuardiaoResult(
+                        aprovado=True,
+                        categoria="ok",
+                        motivo="Aprovado pela camada rápida (camada semântica indisponível).",
+                        camada="rapida",
+                    )
         if not guardiao_res.aprovado:
             await emit_progress(
                 "guardiao",
@@ -361,17 +478,7 @@ async def handle_user_message(
                 },
             )
             # Grava a mensagem do usuário e devolve recusa sem chamar RAG nem LLM
-            user_message = Message(
-                conversation_id=conversation.id,
-                role=MessageRole.USER,
-                content=masked.text,
-                redactions=masked.redactions,
-                created_at=datetime.now(UTC),
-            )
-            session.add(user_message)
-            if conversation.title is None:
-                conversation.title = masked.text.strip().replace("\n", " ")[:80]
-            await session.flush()
+            await _save_user_message()
             return await reply("clarify", GUARDIAO_BLOCKED_MESSAGE, reason="guardiao_blocked")
 
         await emit_progress(
@@ -380,24 +487,20 @@ async def handle_user_message(
             "Mensagem aprovada pelo Guardião de Entrada.",
             {"categoria": guardiao_res.categoria, "camada": guardiao_res.camada},
         )
+    else:
+        await emit_progress(
+            "guardiao",
+            "aprovado",
+            "Guardião de Entrada desativado nas configurações.",
+            {"camada": "bypass"},
+        )
 
     step(
         "masking",
         "warn" if masked.redactions else "ok",
         f"{masked.redactions} dado(s) sensível(is) escondido(s)" if masked.redactions else "",
     )
-    user_message = Message(
-        conversation_id=conversation.id,
-        role=MessageRole.USER,
-        content=masked.text,
-        redactions=masked.redactions,
-        # Horário exato: o now() do banco é igual na transação inteira e embaralharia a ordem.
-        created_at=datetime.now(UTC),
-    )
-    session.add(user_message)
-    if conversation.title is None:
-        conversation.title = masked.text.strip().replace("\n", " ")[:80]
-    await session.flush()
+    await _save_user_message()
     # Escritório virtual: o resumo não leva o texto do usuário, só o tamanho.
     emit_agent_event(
         room="recepcao",
@@ -441,14 +544,23 @@ async def handle_user_message(
             body = fallback
         return await reply(action, body, prompt_version=prompt_version, reason=reason)
 
+    async def emit_triage_complete(detail: str) -> None:
+        await emit_progress("rag", "aprovado", detail)
+        await emit_progress("llm", "aprovado", "Gerando mensagem de escalonamento prioritário.")
+        await emit_progress(
+            "validador", "aprovado", "Escalonamento direto dispensa validação de manuais."
+        )
+
     # Tema crítico ou pedido de humano: não tenta resolver.
     if _matches(masked.text, prompts.CRITICAL_KEYWORDS):
         step("triage", "warn", "tema crítico: vai direto para a TI")
+        await emit_triage_complete("Triagem prioritária: tema crítico encaminhado direto à TI.")
         return await compose(
             prompts.SITUATION_CRITICAL, prompts.CRITICAL_TEXT, "critical", "escalate"
         )
     if _matches(masked.text, prompts.HUMAN_KEYWORDS):
         step("triage", "warn", "pediu a equipe de TI")
+        await emit_triage_complete("Triagem prioritária: encaminhamento direto à equipe de TI.")
         return await compose(
             prompts.SITUATION_HUMAN, prompts.HUMAN_TEXT, "human_requested", "escalate"
         )
@@ -457,6 +569,10 @@ async def handle_user_message(
 
     # Quanto ainda cabe no teto diário do modelo (soma de todos os usuários).
     if await llm_calls_today(session) + 2 > settings.llm_daily_request_limit:
+        limit_msg = "Limite diário de chamadas ao modelo atingido."
+        await emit_progress("rag", "erro", limit_msg)
+        await emit_progress("llm", "erro", limit_msg)
+        await emit_progress("validador", "erro", limit_msg)
         return await reply("limit", prompts.LIMIT_TEXT, reason="daily_limit")
 
     version = await get_prompt_version(session)
@@ -549,23 +665,33 @@ async def handle_user_message(
         )
 
     if not hits:
+        if _is_greeting_or_smalltalk(masked.text):
+            await emit_progress(
+                "rag",
+                "aprovado",
+                "Interação social identificada (dispensa busca em manuais).",
+                {"trechos_encontrados": 0},
+            )
+        else:
+            await emit_progress(
+                "rag",
+                "reprovado",
+                "Nenhum manual de instrução relevante encontrado para este assunto.",
+                {"trechos_encontrados": 0},
+            )
+            if not isinstance(llm, FakeLLM):
+                await emit_progress(
+                    "llm", "aguardando", "Geração cancelada por ausência de manuais."
+                )
+                await emit_progress("validador", "aguardando", "Validação cancelada.")
+                return await missed("no_chunks", NOT_FOUND_MANUALS_MESSAGE)
+    else:
         await emit_progress(
             "rag",
-            "reprovado",
-            "Nenhum manual de instrução relevante encontrado para este assunto.",
-            {"trechos_encontrados": 0},
+            "aprovado",
+            f"{len(hits)} trecho(s) relevante(s) encontrado(s) nos manuais.",
+            {"trechos_encontrados": len(hits), "documentos": docs},
         )
-        if not isinstance(llm, FakeLLM):
-            await emit_progress("llm", "aguardando", "Geração cancelada por ausência de manuais.")
-            await emit_progress("validador", "aguardando", "Validação cancelada.")
-            return await missed("no_chunks", NOT_FOUND_MANUALS_MESSAGE)
-
-    await emit_progress(
-        "rag",
-        "aprovado",
-        f"{len(hits)} trecho(s) relevante(s) encontrado(s) nos manuais.",
-        {"trechos_encontrados": len(hits), "documentos": docs},
-    )
 
     async def ask(sources: list[Hit]) -> LLMResult:
         return await call_llm(
@@ -702,31 +828,36 @@ async def handle_user_message(
         )
         validador_llm = _get_agent_llm(settings.validador_model, llm)
         validador = Validador(confidence_threshold=settings.validador_confidence_threshold)
-        user_prompt = (
-            f"MANUAIS RECUPERADOS:\n{Validador._format_sources(hits)}\n\n"
-            f"DÚVIDA DO USUÁRIO:\n{masked.text}\n\n"
-            f"RESPOSTA GERADA PELA IA:\n{answer}\n\n"
-            "Avalie se a resposta é estritamente sustentada pelos manuais acima conforme as regras."
-        )
-        try:
-            val_call = await call_llm(
-                session,
-                validador_llm,
-                "fidelity",
-                [
-                    ChatMessage("system", VALIDADOR_SYSTEM_PROMPT),
-                    ChatMessage("user", user_prompt),
-                ],
-                user=user,
-                conversation=conversation,
-                prompt_version=version,
-                temperature=0.0,
-                max_tokens=400,
+
+        async def _run_validador(purpose: str, target_answer: str) -> ValidadorResult:
+            val_user_prompt = (
+                f"MANUAIS RECUPERADOS:\n{Validador._format_sources(hits)}\n\n"
+                f"DÚVIDA DO USUÁRIO:\n{masked.text}\n\n"
+                f"RESPOSTA GERADA PELA IA:\n{target_answer}\n\n"
+                "Avalie se a resposta é estritamente sustentada pelos manuais acima "
+                "conforme as regras."
             )
-            val_result = validador.interpretar_resposta(val_call.text)
-        except LLMError as val_err:
-            log.error("Erro durante chamada do Validador: %s", val_err)
-            val_result = validador.interpretar_resposta("")
+            try:
+                val_call = await call_llm(
+                    session,
+                    validador_llm,
+                    purpose,
+                    [
+                        ChatMessage("system", VALIDADOR_SYSTEM_PROMPT),
+                        ChatMessage("user", val_user_prompt),
+                    ],
+                    user=user,
+                    conversation=conversation,
+                    prompt_version=version,
+                    temperature=0.0,
+                    max_tokens=400,
+                )
+                return validador.interpretar_resposta(val_call.text)
+            except LLMError as val_err:
+                log.error("Erro durante chamada do Validador (%s): %s", purpose, val_err)
+                return validador.interpretar_resposta("")
+
+        val_result = await _run_validador("fidelity", answer)
 
         if val_result.valida:
             await emit_progress(
@@ -740,6 +871,16 @@ async def handle_user_message(
 
         # Reprovado: se for FakeLLM (testes legados), encerra direto no desfecho esperado
         if isinstance(llm, FakeLLM):
+            await emit_progress(
+                "validador",
+                "reprovado",
+                "Resposta reprovada na conferência de fidelidade.",
+                {
+                    "confianca": val_result.confianca,
+                    "afirmacoes_sem_respaldo": val_result.afirmacoes_sem_respaldo,
+                    "motivo": val_result.motivo,
+                },
+            )
             step("fidelity", "fail", "afirmou algo que os trechos não dizem")
             return await missed("unfaithful")
 
@@ -781,12 +922,7 @@ async def handle_user_message(
             )
             regen_answer = regen_result.text.strip()
             regen_citations = _cited(regen_answer, hits)
-            val_result_regen = await validador.validar(
-                query=masked.text,
-                sources=hits,
-                answer=regen_answer,
-                llm=validador_llm,
-            )
+            val_result_regen = await _run_validador("fidelity_regen", regen_answer)
             if val_result_regen.valida and regen_citations:
                 pct = int(val_result_regen.confianca * 100)
                 await emit_progress(
@@ -846,10 +982,25 @@ async def handle_user_message(
                 max_tokens=5,
             )
             if _fidelity_failed(verdict.text):
+                await emit_progress(
+                    "validador",
+                    "reprovado",
+                    "Resposta reprovada na conferência de fidelidade.",
+                )
                 step("fidelity", "fail", "afirmou algo que os trechos não dizem")
                 return await missed("unfaithful")
+            await emit_progress(
+                "validador",
+                "aprovado",
+                "Conferência de fidelidade concluída.",
+            )
             step("fidelity", "ok", "toda afirmação tem apoio nos trechos")
         except LLMError:
+            await emit_progress(
+                "validador",
+                "erro",
+                "Conferência de fidelidade indisponível.",
+            )
             step("fidelity", "skip", "conferência indisponível")
 
         return await reply("answered", answer, citations=citations, prompt_version=version)

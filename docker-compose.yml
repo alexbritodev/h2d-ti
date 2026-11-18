@@ -27,8 +27,16 @@ x-api-env: &api-env
   # anthropic/claude-haiku-5.5.
   OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openrouter/free}
   OPENROUTER_FALLBACK_MODELS: ${OPENROUTER_FALLBACK_MODELS:-}
-  # Teto de chamadas ao modelo por dia (todos os usuários). 45 serve ao plano gratuito.
-  LLM_DAILY_REQUEST_LIMIT: ${LLM_DAILY_REQUEST_LIMIT:-45}
+  # Teto de chamadas ao modelo por dia (todos os usuários). No OpenRouter gratuito são 50/dia
+  # (1000 com US$ 10 em créditos). Padrão 200 evita bloqueio local prematuro em apresentações.
+  LLM_DAILY_REQUEST_LIMIT: ${LLM_DAILY_REQUEST_LIMIT:-200}
+  # Agentes do Chat (Guardião de Entrada e Validador de Resposta).
+  GUARDIAO_ENABLED: ${GUARDIAO_ENABLED:-true}
+  GUARDIAO_FAST_ONLY: ${GUARDIAO_FAST_ONLY:-false}
+  GUARDIAO_MODEL: ${GUARDIAO_MODEL:-}
+  VALIDADOR_ENABLED: ${VALIDADOR_ENABLED:-true}
+  VALIDADOR_MODEL: ${VALIDADOR_MODEL:-}
+  VALIDADOR_CONFIDENCE_THRESHOLD: ${VALIDADOR_CONFIDENCE_THRESHOLD:-0.7}
   # Integração com o n8n (rede interna). Sem o segredo, os eventos ficam na fila e nada é enviado.
   N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://h2d-n8n:5678/webhook/h2d-events}
   N8N_HMAC_SECRET: ${N8N_HMAC_SECRET:-}

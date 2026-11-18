@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -118,6 +119,13 @@ class Validador:
                 log.debug("JSON parse fallback error: %s", parse_err)
 
         if cleaned:
+            if Validador._is_discursive_rejection(cleaned):
+                return {
+                    "valida": False,
+                    "confianca": 0.0,
+                    "afirmacoes_sem_respaldo": ["Afirmação não suportada pelos manuais."],
+                    "motivo": "Reprovado na conferência de fidelidade.",
+                }
             # Texto discursivo afirmativo (ex.: "Nenhuma afirmação inventada")
             return {
                 "valida": True,
@@ -127,6 +135,24 @@ class Validador:
             }
 
         raise ValueError("Resposta do validador vazia.")
+
+    @staticmethod
+    def _is_discursive_rejection(cleaned: str) -> bool:
+        """Detecta reprovação clara em texto livre quando o modelo não devolve JSON nem SIM/NAO."""
+        norm = (
+            unicodedata.normalize("NFKD", cleaned).encode("ASCII", "ignore").decode("utf-8").lower()
+        )
+        norm = re.sub(r"\s+", " ", norm).strip()
+        rejection_patterns = (
+            r"\breprovad[ao]s?\b",
+            r"(?<!nao )(?<!sem )\binvalid[ao]s?\b",
+            r"\bnao\s+(?:e|esta|sao|estao)\s+sustentad[ao]s?\b",
+            r"(?<!nao )(?<!sem )\bcontradiz(?:em)?\b",
+            r"(?<!afirma que )(?<!diz que )\bnao\s+consta\b",
+            r"(?<!nao )(?<!sem )(?<!ha )\balucina\w*\b",
+            r"\b(?:possui|contem|apresenta|ha)\s+(?:afirmac(?:ao|oes)|informac(?:ao|oes)|dados?)\s+sem\s+respaldo\b",
+        )
+        return any(re.search(pat, norm) for pat in rejection_patterns)
 
     def interpretar_resposta(self, raw_text: str) -> ValidadorResult:
         """Interpreta a saída do modelo juiz (JSON ou veredito)."""

@@ -178,22 +178,11 @@ class Guardiao:
 
         return None
 
-    async def check_semantic(
-        self,
-        text: str,
-        llm: LLM,
-    ) -> GuardiaoResult:
-        """Camada semântica: chamada à LLM para detectar ironia ou preconceito velado."""
+    @staticmethod
+    def parse_semantic_response(raw_text: str) -> GuardiaoResult:
+        """Interpreta o JSON retornado pela camada semântica com fail-open em erro de formato."""
         try:
-            result = await llm.complete(
-                [
-                    ChatMessage("system", GUARDIAO_SYSTEM_PROMPT),
-                    ChatMessage("user", f"Analise a mensagem a seguir:\n\n{text}"),
-                ],
-                temperature=0.0,
-                max_tokens=250,
-            )
-            parsed = parse_json_object(result.text.strip())
+            parsed = parse_json_object(raw_text.strip())
             aprovado = bool(parsed.get("aprovado", True))
             categoria = parsed.get("categoria", "ok" if aprovado else "outro")
             motivo = str(parsed.get("motivo", "Aprovado na análise semântica."))
@@ -214,6 +203,31 @@ class Guardiao:
                 motivo=motivo,
                 camada="semantica",
             )
+        except (ValueError, Exception) as exc:
+            log.warning("Guardião semântico indisponível (%s). Permitindo com base na rápida.", exc)
+            return GuardiaoResult(
+                aprovado=True,
+                categoria="ok",
+                motivo="Aprovado pela camada rápida (camada semântica indisponível).",
+                camada="rapida",
+            )
+
+    async def check_semantic(
+        self,
+        text: str,
+        llm: LLM,
+    ) -> GuardiaoResult:
+        """Camada semântica: chamada à LLM para detectar ironia ou preconceito velado."""
+        try:
+            result = await llm.complete(
+                [
+                    ChatMessage("system", GUARDIAO_SYSTEM_PROMPT),
+                    ChatMessage("user", f"Analise a mensagem a seguir:\n\n{text}"),
+                ],
+                temperature=0.0,
+                max_tokens=250,
+            )
+            return self.parse_semantic_response(result.text)
         except (LLMError, ValueError, Exception) as exc:
             log.warning("Guardião semântico indisponível (%s). Permitindo com base na rápida.", exc)
             return GuardiaoResult(
