@@ -21,6 +21,25 @@ Também pronto, fora das fases: **convite de usuário por e-mail** (link de uso 
 
 O detalhe item por item está no [TODO](docs/TODO.md).
 
+## Acesso para avaliadores
+
+Para testar o sistema em produção (**<https://h2d-ti.tech>**) com acesso completo (Assistente, Chamados, Documentos, Dashboard e Fluxo do RAG):
+
+| Campo | Valor |
+| --- | --- |
+| Endereço | <https://h2d-ti.tech> |
+| E-mail | `avaliador@h2d.local` |
+| Senha | `Avaliador2026` |
+| Papel | Administrador |
+
+> **Observação (VPS/Portainer):** caso esta conta ainda não tenha sido criada no banco de produção, execute uma única vez no console do container `h2d-api`:
+>
+> ```bash
+> ADMIN_EMAIL=avaliador@h2d.local ADMIN_NAME="Avaliador H2D" ADMIN_PASSWORD='Avaliador2026' python -m h2d.create_admin
+> ```
+>
+> Para testes locais (`http://localhost:5173`), rode `docker compose exec api python -m h2d.seed` e utilize as contas listadas na seção [Como rodar](#como-rodar).
+
 ## O que o sistema faz
 
 - **Base de conhecimento:** o administrador envia manuais (`.md`, `.txt`, `.pdf` ou `.docx`) em *Administração → Documentos*. Um worker divide o texto por títulos, gera os vetores e publica a versão de uma vez só. Arquivo repetido não é reprocessado, e a versão anterior só sai depois da nova estar pronta.
