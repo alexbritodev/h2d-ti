@@ -377,3 +377,45 @@ async def test_gemini_resposta_cortada_por_max_tokens_tenta_com_mais_espaco():
 
     assert resultado.text == "Para criar um usuário, use useradd."
     assert limites == [700, 1400]
+
+
+async def test_cliente_local_ollama_sem_chave_e_sem_campos_openrouter():
+    vistos = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        vistos["url"] = str(request.url)
+        vistos["auth"] = request.headers.get("authorization")
+        vistos["body"] = json.loads(request.content)
+        return _ok("gemma4 ok", cost=0)
+
+    cliente = OpenRouterClient(
+        "",
+        model="gemma4",
+        fallbacks=[],
+        timeout=10,
+        base_url="http://host.docker.internal:11434/v1",
+        transport=httpx.MockTransport(handler),
+        sleep=_sem_espera,
+    )
+    resultado = await cliente.complete(MENSAGENS)
+
+    assert resultado.text == "gemma4 ok"
+    assert vistos["url"] == "http://host.docker.internal:11434/v1/chat/completions"
+    assert vistos["auth"] is None
+    assert "reasoning" not in vistos["body"]
+    assert "models" not in vistos["body"]
+
+
+def test_get_llm_usa_servidor_local_quando_llm_base_url_definida(monkeypatch):
+    monkeypatch.setenv("LLM_BASE_URL", "http://host.docker.internal:11434/v1")
+    monkeypatch.setenv("LLM_MODEL", "gemma4")
+    get_settings.cache_clear()
+    get_llm.cache_clear()
+    try:
+        llm = get_llm()
+        assert isinstance(llm, OpenRouterClient)
+        assert llm.model_name == "gemma4"
+        assert llm._url == "http://host.docker.internal:11434/v1/chat/completions"
+    finally:
+        get_settings.cache_clear()
+        get_llm.cache_clear()

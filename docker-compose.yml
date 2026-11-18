@@ -21,6 +21,11 @@ x-api-env: &api-env
   COOKIE_SECURE: "true"
   ALLOW_DEMO_SEED: ${ALLOW_DEMO_SEED:-false}
   SEED_PASSWORD: ${SEED_PASSWORD:-}
+  # Servidor LLM local na VPS (Ollama: http://host.docker.internal:11434/v1).
+  LLM_BASE_URL: ${LLM_BASE_URL:-}
+  LLM_MODEL: ${LLM_MODEL:-gemma4}
+  LLM_API_KEY: ${LLM_API_KEY:-}
+  LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-120}
   GEMINI_API_KEY: ${GEMINI_API_KEY:-}
   GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.1-flash-lite}
   GEMINI_FALLBACK_MODELS: ${GEMINI_FALLBACK_MODELS:-gemini-3.5-flash-lite,gemini-flash-lite-latest}
@@ -72,6 +77,8 @@ services:
       # pg17: o volume vai em /var/lib/postgresql/data (só o pg18 usa /var/lib/postgresql).
       - h2d_pgdata:/var/lib/postgresql/data
     networks: [interna]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d h2d"]
       interval: 5s
@@ -99,6 +106,8 @@ services:
       # Guarda o modelo de embeddings (baixado no build ou no primeiro uso) entre os redeploys.
       - h2d_models:/models
     networks: [interna]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test:
         - CMD
@@ -129,6 +138,8 @@ services:
       # Guarda o modelo de embeddings (baixado no build ou no primeiro uso) entre os redeploys.
       - h2d_models:/models
     networks: [interna]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       api:
         condition: service_healthy

@@ -73,13 +73,14 @@ async def _post_with_retries(
     parse: Callable[[httpx.Response, float], LLMResult],
     on_empty_answer: Callable[[dict[str, Any]], None],
     on_bad_request: Callable[[dict[str, Any], str], bool],
+    max_attempts: int = 5,
 ) -> LLMResult:
     """Executa chamada HTTP POST com retentativas para falhas transitórias e limites de resposta."""
     started = time.monotonic()
     last_error = "sem resposta"
     rate_limited = False
     async with httpx.AsyncClient(timeout=request_timeout, transport=transport) as client:
-        for attempt in range(5):
+        for attempt in range(max_attempts):
             try:
                 response = await client.post(url, json=body, headers=headers)
             except httpx.HTTPError as error:
@@ -99,9 +100,20 @@ async def _post_with_retries(
                     continue
                 if response.status_code not in RETRYABLE:
                     break
-            if attempt < 4:
+            if attempt < max_attempts - 1:
                 await sleep(1.5 * (attempt + 1))
     raise LLMError(last_error, rate_limited=rate_limited)
+
+
+def _normalize_chat_url(base_url: str) -> str:
+    cleaned = base_url.strip().rstrip("/")
+    if not cleaned:
+        return OPENROUTER_URL
+    if cleaned.endswith("/chat/completions"):
+        return cleaned
+    if cleaned.endswith("/v1"):
+        return f"{cleaned}/chat/completions"
+    return f"{cleaned}/v1/chat/completions"
 
 
 class OpenRouterClient:
@@ -112,13 +124,16 @@ class OpenRouterClient:
         model: str,
         fallbacks: list[str],
         timeout: float,
+        base_url: str = OPENROUTER_URL,
         transport: httpx.AsyncBaseTransport | None = None,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     ) -> None:
-        self._api_key = api_key
+        self._api_key = api_key.strip()
         self.model_name = model
         self._fallbacks = fallbacks
         self._timeout = timeout
+        self._url = _normalize_chat_url(base_url)
+        self._is_openrouter = self._url == OPENROUTER_URL
         self._transport = transport
         self._sleep = sleep
 
@@ -135,18 +150,18 @@ class OpenRouterClient:
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
-        # Modelos que raciocinam gastam todo o max_tokens pensando e devolvem texto vazio ("effort:
-        # low" não basta: medido, 1500 de 1500 tokens). Desligar o raciocínio faz responder.
-        body["reasoning"] = {"enabled": False}
-        if self._fallbacks:
-            # O OpenRouter tenta os modelos da lista, em ordem, se o primeiro falhar.
-            body["models"] = [self.model_name, *self._fallbacks]
-        headers = {
-            "Authorization": f"Bearer {self._api_key}",
-            "X-Title": "H2D - TI",
-        }
+        headers: dict[str, str] = {}
+        if self._api_key:
+            headers["Authorization"] = f"Bearer {self._api_key}"
+        if self._is_openrouter:
+            # Modelos que raciocinam gastam todo o max_tokens pensando e devolvem texto vazio.
+            body["reasoning"] = {"enabled": False}
+            if self._fallbacks:
+                # O OpenRouter tenta os modelos da lista, em ordem, se o primeiro falhar.
+                body["models"] = [self.model_name, *self._fallbacks]
+            headers["X-Title"] = "H2D - TI"
         return await _post_with_retries(
-            url=OPENROUTER_URL,
+            url=self._url,
             body=body,
             headers=headers,
             request_timeout=self._timeout,
@@ -154,7 +169,8 @@ class OpenRouterClient:
             sleep=self._sleep,
             parse=self._parse,
             on_empty_answer=self._expand_max_tokens,
-            on_bad_request=self._relax_reasoning,
+            on_bad_request=self._relax_reasoning if self._is_openrouter else (lambda _b, _t: False),
+            max_attempts=5 if self._is_openrouter else 2,
         )
 
     @staticmethod
@@ -433,6 +449,16 @@ class UnavailableLLM:
 @lru_cache
 def get_llm() -> LLM:
     settings = get_settings()
+    local_url = settings.llm_base_url.strip()
+    if local_url:
+        local_key = settings.llm_api_key.get_secret_value().strip() if settings.llm_api_key else ""
+        return OpenRouterClient(
+            local_key,
+            model=settings.llm_model,
+            fallbacks=[],
+            timeout=settings.llm_timeout_seconds,
+            base_url=local_url,
+        )
     gemini_key = (
         settings.gemini_api_key.get_secret_value().strip() if settings.gemini_api_key else ""
     )

@@ -44,6 +44,7 @@ async def test_status_detalha_backend_banco_e_openrouter_sem_chave(client, monke
     from h2d.routers import health as health_router
 
     health_router.clear_status_cache()
+    monkeypatch.delenv("LLM_BASE_URL", raising=False)
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     get_settings.cache_clear()
@@ -63,6 +64,7 @@ async def test_status_openrouter_conectado_com_cache(client, monkeypatch):
     from h2d.routers import health as health_router
 
     health_router.clear_status_cache()
+    monkeypatch.delenv("LLM_BASE_URL", raising=False)
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test-123")
     get_settings.cache_clear()
@@ -118,6 +120,36 @@ async def test_status_gemini_conectado_com_cache(client, monkeypatch):
     get_settings.cache_clear()
 
 
+async def test_status_local_llm_conectado_com_cache(client, monkeypatch):
+    from h2d.routers import health as health_router
+
+    health_router.clear_status_cache()
+    monkeypatch.setenv("LLM_BASE_URL", "http://host.docker.internal:11434/v1")
+    get_settings.cache_clear()
+
+    calls = 0
+
+    async def fake_probe(base_url: str, api_key: str):
+        nonlocal calls
+        calls += 1
+        assert base_url == "http://host.docker.internal:11434/v1"
+        assert api_key == ""
+        return health_router.ServiceStatusOut(status="ok", detail="Conectado", latency_ms=5)
+
+    monkeypatch.setattr(health_router, "_probe_local_llm", fake_probe)
+
+    first = await client.get("/api/status")
+    second = await client.get("/api/status")
+
+    assert first.status_code == 200
+    assert first.json()["openrouter"] == {"status": "ok", "detail": "Conectado", "latency_ms": 5}
+    assert second.status_code == 200
+    assert calls == 1
+
+    health_router.clear_status_cache()
+    get_settings.cache_clear()
+
+
 async def test_status_reporta_banco_indisponivel_sem_derrubar_endpoint(app, client, monkeypatch):
     from h2d.routers import health as health_router
 
@@ -129,6 +161,7 @@ async def test_status_reporta_banco_indisponivel_sem_derrubar_endpoint(app, clie
         yield BrokenSession()
 
     health_router.clear_status_cache()
+    monkeypatch.delenv("LLM_BASE_URL", raising=False)
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     get_settings.cache_clear()

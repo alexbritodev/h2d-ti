@@ -43,10 +43,10 @@ describe("ApiStatus", () => {
     const trigger = await screen.findByRole("status", { name: "Status dos serviços" });
     expect(trigger.textContent).toContain("Backend");
     expect(trigger.textContent).toContain("Banco");
-    expect(trigger.textContent).toContain("OpenRouter");
+    expect(trigger.textContent).toContain("IA");
 
     await waitFor(() => {
-      expect(trigger.getAttribute("title")).toContain("OpenRouter (IA): Chave não configurada");
+      expect(trigger.getAttribute("title")).toContain("Modelo de IA: Chave não configurada");
     });
 
     const user = userEvent.setup();

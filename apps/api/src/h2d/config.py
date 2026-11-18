@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     jwt_ttl_minutes: int = Field(default=480, gt=0)
     cookie_secure: bool = True
     seed_password: SecretStr | None = None
+    # Servidor LLM local/compatível com OpenAI (ex.: Ollama na VPS: http://host.docker.internal:11434/v1).
+    llm_base_url: str = ""
+    llm_model: str = "gemma4"
+    llm_api_key: SecretStr | None = None
     # Chave do OpenRouter (embeddings e modelo de linguagem, F2/F3). Opcional até o código usá-la.
     openrouter_api_key: SecretStr | None = None
     # Chave do Google AI Studio (Gemini). Quando definida, usa a API direta do Gemini.
@@ -60,6 +64,8 @@ class Settings(BaseSettings):
 
     @property
     def active_llm_model(self) -> str:
+        if self.llm_base_url.strip():
+            return self.llm_model
         if self.gemini_api_key and self.gemini_api_key.get_secret_value().strip():
             return self.gemini_model
         if self.openrouter_api_key and self.openrouter_api_key.get_secret_value().strip():

@@ -100,9 +100,25 @@ async def _probe_gemini(api_key: str) -> ServiceStatusOut:
     )
 
 
+def _models_url(base_url: str) -> str:
+    cleaned = base_url.strip().rstrip("/")
+    if cleaned.endswith("/chat/completions"):
+        return f"{cleaned[: -len('/chat/completions')]}/models"
+    if cleaned.endswith("/v1"):
+        return f"{cleaned}/models"
+    return f"{cleaned}/v1/models"
+
+
+async def _probe_local_llm(base_url: str, api_key: str) -> ServiceStatusOut:
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    return await _probe_key(_models_url(base_url), headers, {401, 403})
+
+
 async def _check_openrouter() -> ServiceStatusOut:
     global _openrouter_cache
     settings = get_settings()
+    local_url = settings.llm_base_url.strip()
+    local_key = settings.llm_api_key.get_secret_value().strip() if settings.llm_api_key else ""
     gemini_secret = settings.gemini_api_key
     gemini_key = gemini_secret.get_secret_value().strip() if gemini_secret is not None else ""
     openrouter_secret = settings.openrouter_api_key
@@ -110,7 +126,9 @@ async def _check_openrouter() -> ServiceStatusOut:
         openrouter_secret.get_secret_value().strip() if openrouter_secret is not None else ""
     )
 
-    if gemini_key:
+    if local_url:
+        provider, api_key = f"local:{local_url}", local_key
+    elif gemini_key:
         provider, api_key = "gemini", gemini_key
     elif openrouter_key.startswith(("AIza", "AQ.")):
         provider, api_key = "gemini", openrouter_key
@@ -126,9 +144,12 @@ async def _check_openrouter() -> ServiceStatusOut:
         if cached_key == cache_key and (now - cached_at) < OPENROUTER_CACHE_TTL_SECONDS:
             return cached_status
 
-    result = (
-        await _probe_gemini(api_key) if provider == "gemini" else await _probe_openrouter(api_key)
-    )
+    if local_url:
+        result = await _probe_local_llm(local_url, local_key)
+    elif provider == "gemini":
+        result = await _probe_gemini(api_key)
+    else:
+        result = await _probe_openrouter(api_key)
     _openrouter_cache = (now, cache_key, result)
     return result
 

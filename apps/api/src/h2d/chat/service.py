@@ -75,6 +75,17 @@ def _get_agent_llm(model_override: str, default_llm: LLM) -> LLM:
     if model_override == default_llm.model_name:
         return default_llm
     settings = get_settings()
+    if settings.llm_base_url.strip():
+        if model_override in ("", "openrouter/free", settings.llm_model):
+            return default_llm
+        local_key = settings.llm_api_key.get_secret_value().strip() if settings.llm_api_key else ""
+        return OpenRouterClient(
+            local_key,
+            model=model_override,
+            fallbacks=[],
+            timeout=settings.llm_timeout_seconds,
+            base_url=settings.llm_base_url.strip(),
+        )
     if isinstance(default_llm, GeminiClient):
         if model_override in ("", "openrouter/free", settings.gemini_model):
             return default_llm

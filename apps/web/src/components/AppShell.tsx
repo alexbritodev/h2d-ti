@@ -223,8 +223,8 @@ export function ApiStatus() {
         },
         {
           key: "openrouter",
-          shortLabel: "OpenRouter",
-          label: "OpenRouter (IA)",
+          shortLabel: "IA",
+          label: "Modelo de IA",
           state: status.data.openrouter.status,
           detail: status.data.openrouter.detail,
           latencyMs: status.data.openrouter.latency_ms,
@@ -248,8 +248,8 @@ export function ApiStatus() {
           },
           {
             key: "openrouter",
-            shortLabel: "OpenRouter",
-            label: "OpenRouter (IA)",
+            shortLabel: "IA",
+            label: "Modelo de IA",
             state: "unknown",
             detail: "Não verificado",
           },
@@ -271,8 +271,8 @@ export function ApiStatus() {
           },
           {
             key: "openrouter",
-            shortLabel: "OpenRouter",
-            label: "OpenRouter (IA)",
+            shortLabel: "IA",
+            label: "Modelo de IA",
             state: "unknown",
             detail: "Verificando...",
           },
