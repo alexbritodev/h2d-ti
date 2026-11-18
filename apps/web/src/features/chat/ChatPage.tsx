@@ -14,6 +14,7 @@ import { meQuery } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 import {
+  type AgentProgressEvent,
   type ChatAction,
   type Citation,
   type ConversationStatus,
@@ -27,6 +28,7 @@ import {
   sendMessage,
   type TicketRef,
 } from "./api";
+import { AgentProgressPanel } from "./AgentProgressPanel";
 import { RagFlowStrip } from "./RagFlowStrip";
 
 interface UiMessage {
@@ -38,6 +40,7 @@ interface UiMessage {
   feedback?: 1 | -1;
   action?: ChatAction;
   streaming?: boolean;
+  agentEvents?: AgentProgressEvent[];
 }
 
 const GREETING =
@@ -98,12 +101,24 @@ export function ChatPage() {
     setMessages((current) => [
       ...current,
       { key: crypto.randomUUID(), role: "user", content: text, citations: [] },
-      { key: assistantKey, role: "assistant", content: "", citations: [], streaming: true },
+      {
+        key: assistantKey,
+        role: "assistant",
+        content: "",
+        citations: [],
+        streaming: true,
+        agentEvents: [],
+      },
     ]);
     const update = (patch: (m: UiMessage) => UiMessage) =>
       setMessages((current) => current.map((m) => (m.key === assistantKey ? patch(m) : m)));
 
     await sendMessage(id, text, {
+      onAgentProgress: (ev) =>
+        update((m) => ({
+          ...m,
+          agentEvents: [...(m.agentEvents ?? []), ev],
+        })),
       onToken: (piece) => update((m) => ({ ...m, content: m.content + piece })),
       onSources: (citations) => update((m) => ({ ...m, citations })),
       onFlow: setFlow,
@@ -204,11 +219,17 @@ export function ChatPage() {
                 <li key={message.key} className="flex gap-3">
                   <BotAvatar />
                   <div className="min-w-0 flex-1 space-y-3">
+                    {message.agentEvents && message.agentEvents.length > 0 && (
+                      <AgentProgressPanel
+                        events={message.agentEvents}
+                        isStreaming={message.streaming}
+                      />
+                    )}
                     {message.content ? (
                       <Markdown>{message.content}</Markdown>
-                    ) : (
+                    ) : message.streaming && (!message.agentEvents || message.agentEvents.length === 0) ? (
                       <p className="text-muted">Pensando…</p>
-                    )}
+                    ) : null}
                     {message.citations.length > 0 && (
                       <div className="flex flex-wrap gap-2">
                         {message.citations.map((citation, index) =>

@@ -161,6 +161,7 @@ async def create_user(body: UserCreate, session: SessionDep, actor: AdminActor) 
         )
     )
     await session.commit()
+    await session.refresh(user)
     return UserAdminOut.model_validate(user)
 
 
@@ -200,6 +201,7 @@ async def invite_user(
         )
     )
     await session.commit()
+    await session.refresh(user)
     out = UserAdminOut.model_validate(user)
     out.invite_pending = True
     return out
@@ -267,6 +269,7 @@ async def update_user(
             )
         )
     await session.commit()
+    await session.refresh(user)
     return UserAdminOut.model_validate(user)
 
 

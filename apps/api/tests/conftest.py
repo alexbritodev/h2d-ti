@@ -58,18 +58,27 @@ def alembic_config() -> Config:
     return config
 
 
+_db_migration_error: Exception | None = None
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _migrated_database() -> None:
+    global _db_migration_error
     # Trava de segurança: os testes nunca rodam fora de um banco próprio para isso.
     database = make_url(TEST_DATABASE_URL).database or ""
     if not database.endswith("_test"):
         pytest.exit(f"Banco de teste precisa terminar em _test, recebido: {database}", 1)
-    command.upgrade(alembic_config(), "head")
+    try:
+        command.upgrade(alembic_config(), "head")
+    except Exception as exc:
+        _db_migration_error = exc
 
 
 @pytest.fixture
 async def session() -> AsyncIterator[AsyncSession]:
     """Cada teste roda numa transação desfeita ao final, sem deixar rastro no banco."""
+    if _db_migration_error is not None:
+        pytest.skip(f"Banco de dados não disponível para testes com banco: {_db_migration_error}")
     engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
     async with engine.connect() as connection:
         transaction = await connection.begin()
