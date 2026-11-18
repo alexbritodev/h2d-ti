@@ -231,6 +231,8 @@ class GeminiClient:
                 normalized = normalized[len(prefix) :]
         if not normalized or normalized == "openrouter/free":
             return "gemini-3.1-flash-lite"
+        if normalized[0].isdigit():
+            normalized = f"gemini-{normalized}"
         return normalized
 
     async def complete(
@@ -339,9 +341,9 @@ class GeminiClient:
         config["maxOutputTokens"] = min(int(config["maxOutputTokens"]) * 2, 4000)
 
     @staticmethod
-    def _relax_thinking(body: dict[str, Any], error_text: str) -> bool:
+    def _relax_thinking(body: dict[str, Any], _error_text: str) -> bool:
         config = body.get("generationConfig", {})
-        if "thinking" not in error_text.lower() or "thinkingConfig" not in config:
+        if "thinkingConfig" not in config:
             return False
         del config["thinkingConfig"]
         return True

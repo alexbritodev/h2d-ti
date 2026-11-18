@@ -278,10 +278,12 @@ async def test_gemini_remove_thinking_config_em_erro_400():
         body = json.loads(request.content)
         configs.append("thinkingConfig" in body["generationConfig"])
         if len(configs) == 1:
-            return httpx.Response(400, text='{"error":{"message":"Unknown name thinkingConfig"}}')
+            return httpx.Response(
+                400, text='{"error":{"message":"Request contains an invalid argument."}}'
+            )
         return _gemini_ok("respondeu")
 
-    resultado = await _gemini_client(handler).complete(MENSAGENS)
+    resultado = await _gemini_client(handler, model="3.1-flash-lite").complete(MENSAGENS)
 
     assert resultado.text == "respondeu"
     assert configs == [True, False]
