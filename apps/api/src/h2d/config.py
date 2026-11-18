@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     seed_password: SecretStr | None = None
     # Chave do OpenRouter (embeddings e modelo de linguagem, F2/F3). Opcional até o código usá-la.
     openrouter_api_key: SecretStr | None = None
+    # Chave do Google AI Studio (Gemini). Quando definida, usa a API direta do Gemini.
+    gemini_api_key: SecretStr | None = None
+    gemini_model: str = "gemini-2.5-flash"
     # Arquivos originais enviados na ingestão (volume compartilhado entre API e worker).
     upload_dir: str = "/data/uploads"
     # Cache do modelo de embeddings (ADR-003). Na imagem de produção o modelo já vem baixado.
@@ -53,6 +56,20 @@ class Settings(BaseSettings):
     escritorio_virtual_enabled: bool = False
     # Libera os cenários roteirizados da tela (não grava nada no banco).
     escritorio_virtual_demo: bool = False
+
+    @property
+    def active_llm_model(self) -> str:
+        if self.gemini_api_key and self.gemini_api_key.get_secret_value().strip():
+            return self.gemini_model
+        if self.openrouter_api_key and self.openrouter_api_key.get_secret_value().strip():
+            if self.openrouter_api_key.get_secret_value().strip().startswith(("AIza", "AQ.")):
+                return (
+                    self.gemini_model
+                    if self.openrouter_model in ("", "openrouter/free")
+                    else self.openrouter_model
+                )
+            return self.openrouter_model
+        return self.gemini_model
 
     @model_validator(mode="after")
     def _production_is_safe(self) -> Self:

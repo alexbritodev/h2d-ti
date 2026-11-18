@@ -387,7 +387,7 @@ export function GenerationStage({ trace }: { trace: RagTrace }) {
         chat usaria agora.
       </p>
       <KpiRow>
-        <Kpi value={g.model.split("/").pop()} label="modelo principal (OpenRouter)" />
+        <Kpi value={g.model.split("/").pop()} label="modelo principal (Gemini)" />
         <Kpi value={g.fallbacks.length} label="modelos de reserva" />
         <Kpi value={formatNumber(g.temperature, 1)} label="temperatura" />
         <Kpi value={g.max_tokens} label="máximo de tokens na resposta" />

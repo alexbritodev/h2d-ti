@@ -14,6 +14,7 @@ from h2d.deps import SessionDep
 router = APIRouter(tags=["operação"])
 
 OPENROUTER_KEY_URL = "https://openrouter.ai/api/v1/key"
+GEMINI_MODELS_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 OPENROUTER_CACHE_TTL_SECONDS = 60.0
 OPENROUTER_TIMEOUT_SECONDS = 5.0
 
@@ -57,21 +58,20 @@ async def _check_database(session: SessionDep) -> ServiceStatusOut:
     return ServiceStatusOut(status="ok", detail="Conectado", latency_ms=latency_ms)
 
 
-async def _probe_openrouter(api_key: str) -> ServiceStatusOut:
+async def _probe_key(
+    url: str, headers: dict[str, str], invalid_statuses: set[int]
+) -> ServiceStatusOut:
     started = time.monotonic()
     try:
         async with httpx.AsyncClient(timeout=OPENROUTER_TIMEOUT_SECONDS) as client:
-            response = await client.get(
-                OPENROUTER_KEY_URL,
-                headers={"Authorization": f"Bearer {api_key}"},
-            )
+            response = await client.get(url, headers=headers)
     except httpx.HTTPError:
         return ServiceStatusOut(status="unavailable", detail="Sem conexão")
 
     latency_ms = max(0, round((time.monotonic() - started) * 1000))
     if response.status_code == 200:
         return ServiceStatusOut(status="ok", detail="Conectado", latency_ms=latency_ms)
-    if response.status_code in {401, 403}:
+    if response.status_code in invalid_statuses:
         return ServiceStatusOut(
             status="unavailable", detail="Chave inválida", latency_ms=latency_ms
         )
@@ -84,22 +84,52 @@ async def _probe_openrouter(api_key: str) -> ServiceStatusOut:
     )
 
 
+async def _probe_openrouter(api_key: str) -> ServiceStatusOut:
+    return await _probe_key(
+        OPENROUTER_KEY_URL,
+        {"Authorization": f"Bearer {api_key}"},
+        {401, 403},
+    )
+
+
+async def _probe_gemini(api_key: str) -> ServiceStatusOut:
+    return await _probe_key(
+        f"{GEMINI_MODELS_URL}?pageSize=1",
+        {"x-goog-api-key": api_key},
+        {400, 401, 403},
+    )
+
+
 async def _check_openrouter() -> ServiceStatusOut:
     global _openrouter_cache
     settings = get_settings()
-    secret = settings.openrouter_api_key
-    api_key = secret.get_secret_value().strip() if secret is not None else ""
-    if not api_key:
+    gemini_secret = settings.gemini_api_key
+    gemini_key = gemini_secret.get_secret_value().strip() if gemini_secret is not None else ""
+    openrouter_secret = settings.openrouter_api_key
+    openrouter_key = (
+        openrouter_secret.get_secret_value().strip() if openrouter_secret is not None else ""
+    )
+
+    if gemini_key:
+        provider, api_key = "gemini", gemini_key
+    elif openrouter_key.startswith(("AIza", "AQ.")):
+        provider, api_key = "gemini", openrouter_key
+    elif openrouter_key:
+        provider, api_key = "openrouter", openrouter_key
+    else:
         return ServiceStatusOut(status="degraded", detail="Chave não configurada")
 
+    cache_key = f"{provider}:{api_key}"
     now = time.monotonic()
     if _openrouter_cache is not None:
         cached_at, cached_key, cached_status = _openrouter_cache
-        if cached_key == api_key and (now - cached_at) < OPENROUTER_CACHE_TTL_SECONDS:
+        if cached_key == cache_key and (now - cached_at) < OPENROUTER_CACHE_TTL_SECONDS:
             return cached_status
 
-    result = await _probe_openrouter(api_key)
-    _openrouter_cache = (now, api_key, result)
+    result = (
+        await _probe_gemini(api_key) if provider == "gemini" else await _probe_openrouter(api_key)
+    )
+    _openrouter_cache = (now, cache_key, result)
     return result
 
 

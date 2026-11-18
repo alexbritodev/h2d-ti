@@ -372,7 +372,7 @@ async def trace_question(
 
     settings = get_settings()
     generation = GenerationStage(
-        model=settings.openrouter_model,
+        model=settings.active_llm_model,
         fallbacks=[m.strip() for m in settings.openrouter_fallback_models.split(",") if m.strip()],
         temperature=0.2,
         max_tokens=ANSWER_MAX_TOKENS,
@@ -520,7 +520,7 @@ async def overview(session: AsyncSession, embedder: Embedder) -> OverviewOut:
             candidates=CANDIDATES,
             search_limit=SEARCH_LIMIT,
             history_messages=HISTORY_MESSAGES,
-            answer_model=settings.openrouter_model,
+            answer_model=settings.active_llm_model,
             daily_limit=settings.llm_daily_request_limit,
             calls_today=await llm_calls_today(session),
         ),

@@ -18,6 +18,7 @@ import httpx
 from h2d.config import get_settings
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 RETRYABLE = {429, 500, 502, 503, 504}
 
 
@@ -61,6 +62,48 @@ class LLM(Protocol):
     ) -> LLMResult: ...
 
 
+async def _post_with_retries(
+    *,
+    url: str,
+    body: dict[str, Any],
+    headers: dict[str, str],
+    request_timeout: float,
+    transport: httpx.AsyncBaseTransport | None,
+    sleep: Callable[[float], Awaitable[None]],
+    parse: Callable[[httpx.Response, float], LLMResult],
+    on_empty_answer: Callable[[dict[str, Any]], None],
+    on_bad_request: Callable[[dict[str, Any], str], bool],
+) -> LLMResult:
+    """Executa chamada HTTP POST com retentativas para falhas transitórias e limites de resposta."""
+    started = time.monotonic()
+    last_error = "sem resposta"
+    rate_limited = False
+    async with httpx.AsyncClient(timeout=request_timeout, transport=transport) as client:
+        for attempt in range(5):
+            try:
+                response = await client.post(url, json=body, headers=headers)
+            except httpx.HTTPError as error:
+                last_error = f"{type(error).__name__}: {error}"
+            else:
+                if response.status_code == 200:
+                    try:
+                        return parse(response, started)
+                    except EmptyAnswerError as error:
+                        # Tenta novamente com mais espaço para o raciocínio e a resposta.
+                        last_error = str(error)
+                        on_empty_answer(body)
+                        continue
+                rate_limited = response.status_code == 429
+                last_error = f"HTTP {response.status_code}: {response.text[:300]}"
+                if response.status_code == 400 and on_bad_request(body, response.text):
+                    continue
+                if response.status_code not in RETRYABLE:
+                    break
+            if attempt < 4:
+                await sleep(1.5 * (attempt + 1))
+    raise LLMError(last_error, rate_limited=rate_limited)
+
+
 class OpenRouterClient:
     def __init__(
         self,
@@ -102,34 +145,21 @@ class OpenRouterClient:
             "Authorization": f"Bearer {self._api_key}",
             "X-Title": "H2D - TI",
         }
-        started = time.monotonic()
-        last_error = "sem resposta"
-        rate_limited = False
-        async with httpx.AsyncClient(timeout=self._timeout, transport=self._transport) as client:
-            for attempt in range(5):
-                try:
-                    response = await client.post(OPENROUTER_URL, json=body, headers=headers)
-                except httpx.HTTPError as error:
-                    last_error = f"{type(error).__name__}: {error}"
-                else:
-                    if response.status_code == 200:
-                        try:
-                            return self._parse(response, started)
-                        except EmptyAnswerError as error:
-                            # O roteador gratuito sorteia o modelo a cada chamada: tenta de novo,
-                            # com mais espaço para o raciocínio caber e sobrar para a resposta.
-                            last_error = str(error)
-                            body["max_tokens"] = min(int(body["max_tokens"]) * 2, 4000)
-                            continue
-                    rate_limited = response.status_code == 429
-                    last_error = f"HTTP {response.status_code}: {response.text[:300]}"
-                    if response.status_code == 400 and self._relax_reasoning(body, response.text):
-                        continue  # o modelo não aceita desligar o raciocínio: tenta o modo leve
-                    if response.status_code not in RETRYABLE:
-                        break
-                if attempt < 4:
-                    await self._sleep(1.5 * (attempt + 1))
-        raise LLMError(last_error, rate_limited=rate_limited)
+        return await _post_with_retries(
+            url=OPENROUTER_URL,
+            body=body,
+            headers=headers,
+            request_timeout=self._timeout,
+            transport=self._transport,
+            sleep=self._sleep,
+            parse=self._parse,
+            on_empty_answer=self._expand_max_tokens,
+            on_bad_request=self._relax_reasoning,
+        )
+
+    @staticmethod
+    def _expand_max_tokens(body: dict[str, Any]) -> None:
+        body["max_tokens"] = min(int(body["max_tokens"]) * 2, 4000)
 
     @staticmethod
     def _relax_reasoning(body: dict[str, Any], error_text: str) -> bool:
@@ -163,6 +193,118 @@ class OpenRouterClient:
             input_tokens=int(usage.get("prompt_tokens") or 0),
             output_tokens=int(usage.get("completion_tokens") or 0),
             cost_usd=Decimal(str(usage.get("cost") or 0)),
+            latency_ms=int((time.monotonic() - started) * 1000),
+        )
+
+
+class GeminiClient:
+    """Cliente da API direta do Google AI Studio (Gemini)."""
+
+    def __init__(
+        self,
+        api_key: str,
+        *,
+        model: str = "gemini-2.5-flash",
+        timeout: float,
+        transport: httpx.AsyncBaseTransport | None = None,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+    ) -> None:
+        self._api_key = api_key
+        self.model_name = self._normalize_model(model)
+        self._timeout = timeout
+        self._transport = transport
+        self._sleep = sleep
+
+    @staticmethod
+    def _normalize_model(model: str) -> str:
+        normalized = model.strip()
+        for prefix in ("google/", "models/"):
+            if normalized.startswith(prefix):
+                normalized = normalized[len(prefix) :]
+        if not normalized or normalized == "openrouter/free":
+            return "gemini-2.5-flash"
+        return normalized
+
+    async def complete(
+        self,
+        messages: list[ChatMessage],
+        *,
+        temperature: float = 0.2,
+        max_tokens: int = 700,
+    ) -> LLMResult:
+        system_parts = [{"text": m.content} for m in messages if m.role == "system"]
+        contents: list[dict[str, Any]] = []
+        for message in messages:
+            if message.role == "system":
+                continue
+            role = "model" if message.role == "assistant" else "user"
+            part = {"text": message.content}
+            if contents and contents[-1]["role"] == role:
+                contents[-1]["parts"].append(part)
+            else:
+                contents.append({"role": role, "parts": [part]})
+        if not contents:
+            contents.append({"role": "user", "parts": [{"text": ""}]})
+
+        body: dict[str, Any] = {
+            "contents": contents,
+            "generationConfig": {
+                "temperature": temperature,
+                "maxOutputTokens": max_tokens,
+                "thinkingConfig": {"thinkingBudget": 0},
+            },
+        }
+        if system_parts:
+            body["systemInstruction"] = {"parts": system_parts}
+
+        return await _post_with_retries(
+            url=f"{GEMINI_BASE_URL}/{self.model_name}:generateContent",
+            body=body,
+            headers={"x-goog-api-key": self._api_key},
+            request_timeout=self._timeout,
+            transport=self._transport,
+            sleep=self._sleep,
+            parse=self._parse,
+            on_empty_answer=self._expand_max_tokens,
+            on_bad_request=self._relax_thinking,
+        )
+
+    @staticmethod
+    def _expand_max_tokens(body: dict[str, Any]) -> None:
+        config = body["generationConfig"]
+        config["maxOutputTokens"] = min(int(config["maxOutputTokens"]) * 2, 4000)
+
+    @staticmethod
+    def _relax_thinking(body: dict[str, Any], error_text: str) -> bool:
+        config = body.get("generationConfig", {})
+        if "thinking" not in error_text.lower() or "thinkingConfig" not in config:
+            return False
+        del config["thinkingConfig"]
+        return True
+
+    def _parse(self, response: httpx.Response, started: float) -> LLMResult:
+        try:
+            data = response.json()
+            candidate = data["candidates"][0]
+            parts = (candidate.get("content") or {}).get("parts") or []
+            text = "".join(
+                str(part.get("text") or "")
+                for part in parts
+                if isinstance(part, dict) and not part.get("thought")
+            )
+        except (ValueError, KeyError, IndexError, TypeError) as error:
+            raise LLMError(f"Resposta inesperada do provedor: {error}") from error
+        if not text.strip() and candidate.get("finishReason") in ("MAX_TOKENS", "length"):
+            raise EmptyAnswerError(
+                "O modelo gastou todos os tokens raciocinando e não escreveu a resposta"
+            )
+        usage = data.get("usageMetadata") or {}
+        return LLMResult(
+            text=text.strip(),
+            model=str(data.get("modelVersion") or self.model_name),
+            input_tokens=int(usage.get("promptTokenCount") or 0),
+            output_tokens=int(usage.get("candidatesTokenCount") or 0),
+            cost_usd=Decimal(0),
             latency_ms=int((time.monotonic() - started) * 1000),
         )
 
@@ -209,21 +351,46 @@ class UnavailableLLM:
         temperature: float = 0.2,
         max_tokens: int = 700,
     ) -> LLMResult:
-        raise LLMError("OPENROUTER_API_KEY não está configurada")
+        raise LLMError("GEMINI_API_KEY (ou OPENROUTER_API_KEY) não está configurada")
 
 
 @lru_cache
 def get_llm() -> LLM:
     settings = get_settings()
-    if settings.openrouter_api_key is None or not settings.openrouter_api_key.get_secret_value():
-        return UnavailableLLM()
-    fallbacks = [m.strip() for m in settings.openrouter_fallback_models.split(",") if m.strip()]
-    return OpenRouterClient(
-        settings.openrouter_api_key.get_secret_value(),
-        model=settings.openrouter_model,
-        fallbacks=fallbacks,
-        timeout=settings.llm_timeout_seconds,
+    gemini_key = (
+        settings.gemini_api_key.get_secret_value().strip() if settings.gemini_api_key else ""
     )
+    if gemini_key:
+        return GeminiClient(
+            gemini_key,
+            model=settings.gemini_model,
+            timeout=settings.llm_timeout_seconds,
+        )
+    openrouter_key = (
+        settings.openrouter_api_key.get_secret_value().strip()
+        if settings.openrouter_api_key
+        else ""
+    )
+    if openrouter_key.startswith(("AIza", "AQ.")):
+        model = (
+            settings.gemini_model
+            if settings.openrouter_model in ("", "openrouter/free")
+            else settings.openrouter_model
+        )
+        return GeminiClient(
+            openrouter_key,
+            model=model,
+            timeout=settings.llm_timeout_seconds,
+        )
+    if openrouter_key:
+        fallbacks = [m.strip() for m in settings.openrouter_fallback_models.split(",") if m.strip()]
+        return OpenRouterClient(
+            openrouter_key,
+            model=settings.openrouter_model,
+            fallbacks=fallbacks,
+            timeout=settings.llm_timeout_seconds,
+        )
+    return UnavailableLLM()
 
 
 def parse_json_object(text: str) -> dict[str, Any]:

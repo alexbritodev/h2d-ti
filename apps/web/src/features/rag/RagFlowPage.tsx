@@ -76,7 +76,7 @@ const QUERY: Step[] = [
   { key: "search", title: "Busca dupla", hint: "vetor e palavras", icon: Search, timing: "search" },
   { key: "fusion", title: "Fusão RRF", hint: "soma das posições", icon: Merge, timing: "fusion" },
   { key: "prompt", title: "Prompt", hint: "regras e fontes", icon: FileText, timing: "prompt" },
-  { key: "generation", title: "Modelo", hint: "OpenRouter", icon: Bot },
+  { key: "generation", title: "Modelo", hint: "Gemini", icon: Bot },
   { key: "check", title: "Conferência", hint: "citação e fidelidade", icon: BadgeCheck },
 ];
 
@@ -103,7 +103,7 @@ const QUERY_INFO: Partial<Record<StepKey, string>> = {
   prompt:
     "Os 5 trechos entram como dados numerados, junto com as regras do sistema, as últimas mensagens da conversa e a pergunta.",
   generation:
-    "O modelo (OpenRouter) escreve a resposta citando os trechos, ou diz que não achou, ou conversa quando a mensagem é social.",
+    "O modelo (Gemini) escreve a resposta citando os trechos, ou diz que não achou, ou conversa quando a mensagem é social.",
 };
 
 function StepNode({

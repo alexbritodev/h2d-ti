@@ -21,6 +21,8 @@ x-api-env: &api-env
   COOKIE_SECURE: "true"
   ALLOW_DEMO_SEED: ${ALLOW_DEMO_SEED:-false}
   SEED_PASSWORD: ${SEED_PASSWORD:-}
+  GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+  GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
   OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
   # Modelo de linguagem. O padrão é o roteador gratuito do OpenRouter, que escolhe ao acaso um
   # modelo gratuito disponível. Para mais estabilidade use um modelo pago barato, ex.:

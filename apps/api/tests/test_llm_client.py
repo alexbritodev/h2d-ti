@@ -4,12 +4,15 @@ from decimal import Decimal
 import httpx
 import pytest
 
+from h2d.config import get_settings
 from h2d.llm.client import (
     ChatMessage,
     FakeLLM,
+    GeminiClient,
     LLMError,
     OpenRouterClient,
     UnavailableLLM,
+    get_llm,
     parse_json_object,
 )
 
@@ -197,3 +200,128 @@ def test_json_dentro_de_texto_e_extraido():
     assert parse_json_object('Claro!\n{"a": 1, "b": "x"}\nfim') == {"a": 1, "b": "x"}
     with pytest.raises(ValueError):
         parse_json_object("sem json aqui")
+
+
+def _gemini_client(handler, model: str = "gemini-2.5-flash") -> GeminiClient:
+    return GeminiClient(
+        "AIza-teste",
+        model=model,
+        timeout=5,
+        transport=httpx.MockTransport(handler),
+        sleep=_sem_espera,
+    )
+
+
+def _gemini_ok(text: str = "oi"):
+    return httpx.Response(
+        200,
+        json={
+            "modelVersion": "gemini-2.5-flash",
+            "candidates": [{"content": {"parts": [{"text": f" {text} "}]}, "finishReason": "STOP"}],
+            "usageMetadata": {"promptTokenCount": 15, "candidatesTokenCount": 6},
+        },
+    )
+
+
+async def test_gemini_envia_system_instruction_thinking_e_extrai_tokens():
+    vistos = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        vistos["url"] = str(request.url)
+        vistos["key"] = request.headers["x-goog-api-key"]
+        vistos["body"] = json.loads(request.content)
+        return httpx.Response(
+            200,
+            json={
+                "modelVersion": "gemini-2.5-flash",
+                "candidates": [
+                    {
+                        "content": {
+                            "parts": [
+                                {"text": "raciocinio oculto", "thought": True},
+                                {"text": " resposta final "},
+                            ]
+                        },
+                        "finishReason": "STOP",
+                    }
+                ],
+                "usageMetadata": {"promptTokenCount": 15, "candidatesTokenCount": 6},
+            },
+        )
+
+    cliente = _gemini_client(handler, model="google/gemini-2.5-flash")
+    resultado = await cliente.complete(
+        [
+            ChatMessage("system", "seja breve"),
+            ChatMessage("user", "oi"),
+            ChatMessage("user", "tudo bem?"),
+        ]
+    )
+
+    assert vistos["url"].endswith("/v1beta/models/gemini-2.5-flash:generateContent")
+    assert vistos["key"] == "AIza-teste"
+    assert vistos["body"]["systemInstruction"] == {"parts": [{"text": "seja breve"}]}
+    assert vistos["body"]["contents"] == [
+        {"role": "user", "parts": [{"text": "oi"}, {"text": "tudo bem?"}]}
+    ]
+    assert vistos["body"]["generationConfig"]["thinkingConfig"] == {"thinkingBudget": 0}
+    assert resultado.text == "resposta final"
+    assert (resultado.input_tokens, resultado.output_tokens) == (15, 6)
+    assert resultado.cost_usd == Decimal(0)
+    assert resultado.model == "gemini-2.5-flash"
+
+
+async def test_gemini_remove_thinking_config_em_erro_400():
+    configs = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        configs.append("thinkingConfig" in body["generationConfig"])
+        if len(configs) == 1:
+            return httpx.Response(400, text='{"error":{"message":"Unknown name thinkingConfig"}}')
+        return _gemini_ok("respondeu")
+
+    resultado = await _gemini_client(handler).complete(MENSAGENS)
+
+    assert resultado.text == "respondeu"
+    assert configs == [True, False]
+
+
+async def test_gemini_texto_vazio_em_max_tokens_tenta_de_novo_com_mais_espaco():
+    limites = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        limites.append(json.loads(request.content)["generationConfig"]["maxOutputTokens"])
+        if len(limites) == 1:
+            return httpx.Response(
+                200,
+                json={
+                    "modelVersion": "gemini-2.5-flash",
+                    "candidates": [
+                        {
+                            "content": {"parts": [{"text": "pensando", "thought": True}]},
+                            "finishReason": "MAX_TOKENS",
+                        }
+                    ],
+                },
+            )
+        return _gemini_ok("agora sim")
+
+    resultado = await _gemini_client(handler).complete(MENSAGENS, max_tokens=700)
+
+    assert resultado.text == "agora sim"
+    assert limites == [700, 1400]
+
+
+def test_get_llm_usa_gemini_quando_gemini_api_key_definida(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "AIza-chave-teste")
+    monkeypatch.setenv("GEMINI_MODEL", "gemini-2.5-flash")
+    get_settings.cache_clear()
+    get_llm.cache_clear()
+    try:
+        llm = get_llm()
+        assert isinstance(llm, GeminiClient)
+        assert llm.model_name == "gemini-2.5-flash"
+    finally:
+        get_settings.cache_clear()
+        get_llm.cache_clear()
