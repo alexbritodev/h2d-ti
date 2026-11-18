@@ -659,6 +659,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * System Status
+         * @description Estado detalhado do backend, banco de dados e OpenRouter.
+         */
+        get: operations["getSystemStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tickets": {
         parameters: {
             query?: never;
@@ -1592,6 +1612,18 @@ export interface components {
             /** Content */
             content: string;
         };
+        /** ServiceStatusOut */
+        ServiceStatusOut: {
+            /** Detail */
+            detail: string;
+            /** Latency Ms */
+            latency_ms?: number | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "degraded" | "unavailable";
+        };
         /** SlaMetrics */
         SlaMetrics: {
             /** Breached */
@@ -1623,6 +1655,14 @@ export interface components {
             priority: components["schemas"]["Priority"];
             /** Resolution Minutes */
             resolution_minutes: number;
+        };
+        /** SystemStatusOut */
+        SystemStatusOut: {
+            backend: components["schemas"]["ServiceStatusOut"];
+            database: components["schemas"]["ServiceStatusOut"];
+            openrouter: components["schemas"]["ServiceStatusOut"];
+            /** Version */
+            version: string;
         };
         /** TechnicianOut */
         TechnicianOut: {
@@ -3295,6 +3335,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthOut"];
+                };
+            };
+        };
+    };
+    getSystemStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemStatusOut"];
                 };
             };
         };

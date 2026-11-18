@@ -27,12 +27,12 @@ const ROLE_LABELS: Record<Role, string> = {
 
 const COLLAPSED_KEY = "h2d-sidebar-collapsed";
 
-const healthQuery = {
-  queryKey: ["health"],
+const systemStatusQuery = {
+  queryKey: ["system-status"],
   refetchInterval: 30_000,
   retry: false,
   queryFn: async () => {
-    const { data } = await api.GET("/api/health");
+    const { data } = await api.GET("/api/status");
     if (!data) throw new Error("API indisponível");
     return data;
   },
@@ -117,7 +117,7 @@ function SidebarNav({
 }
 
 function Sidebar({ role }: { role: Role }) {
-  const health = useQuery(healthQuery);
+  const status = useQuery(systemStatusQuery);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSED_KEY) === "true");
 
   function toggle() {
@@ -145,7 +145,7 @@ function Sidebar({ role }: { role: Role }) {
           collapsed ? "justify-center" : "justify-between pl-5",
         )}
       >
-        {!collapsed && <span>{health.data ? `Versão ${health.data.version}` : ""}</span>}
+        {!collapsed && <span>{status.data ? `Versão ${status.data.version}` : ""}</span>}
         <button
           type="button"
           aria-label={label}
@@ -184,19 +184,147 @@ function MobileMenu({ role }: { role: Role }) {
   );
 }
 
-function ApiStatus() {
-  const health = useQuery(healthQuery);
-  const { label, dot } = health.isSuccess
-    ? { label: "Sistema online", dot: "bg-accent" }
-    : health.isError
-      ? { label: "Sistema indisponível", dot: "bg-danger" }
-      : { label: "Verificando sistema", dot: "bg-muted" };
+type IndicatorState = "ok" | "degraded" | "unavailable" | "unknown";
+
+const DOT_BY_STATE: Record<IndicatorState, string> = {
+  ok: "bg-accent",
+  degraded: "bg-warn",
+  unavailable: "bg-danger",
+  unknown: "bg-muted",
+};
+
+export function ApiStatus() {
+  const status = useQuery(systemStatusQuery);
+
+  const services: Array<{
+    key: string;
+    shortLabel: string;
+    label: string;
+    state: IndicatorState;
+    detail: string;
+    latencyMs?: number | null;
+  }> = status.data
+    ? [
+        {
+          key: "backend",
+          shortLabel: "Backend",
+          label: "Backend (API)",
+          state: status.data.backend.status,
+          detail: status.data.backend.detail,
+          latencyMs: status.data.backend.latency_ms,
+        },
+        {
+          key: "database",
+          shortLabel: "Banco",
+          label: "Banco de Dados",
+          state: status.data.database.status,
+          detail: status.data.database.detail,
+          latencyMs: status.data.database.latency_ms,
+        },
+        {
+          key: "openrouter",
+          shortLabel: "OpenRouter",
+          label: "OpenRouter (IA)",
+          state: status.data.openrouter.status,
+          detail: status.data.openrouter.detail,
+          latencyMs: status.data.openrouter.latency_ms,
+        },
+      ]
+    : status.isError
+      ? [
+          {
+            key: "backend",
+            shortLabel: "Backend",
+            label: "Backend (API)",
+            state: "unavailable",
+            detail: "Sem conexão",
+          },
+          {
+            key: "database",
+            shortLabel: "Banco",
+            label: "Banco de Dados",
+            state: "unknown",
+            detail: "Não verificado",
+          },
+          {
+            key: "openrouter",
+            shortLabel: "OpenRouter",
+            label: "OpenRouter (IA)",
+            state: "unknown",
+            detail: "Não verificado",
+          },
+        ]
+      : [
+          {
+            key: "backend",
+            shortLabel: "Backend",
+            label: "Backend (API)",
+            state: "unknown",
+            detail: "Verificando...",
+          },
+          {
+            key: "database",
+            shortLabel: "Banco",
+            label: "Banco de Dados",
+            state: "unknown",
+            detail: "Verificando...",
+          },
+          {
+            key: "openrouter",
+            shortLabel: "OpenRouter",
+            label: "OpenRouter (IA)",
+            state: "unknown",
+            detail: "Verificando...",
+          },
+        ];
 
   return (
-    <span role="status" className="hidden items-center gap-2 text-xs text-muted xl:flex">
-      <span aria-hidden className={cn("size-2 rounded-full", dot)} />
-      {label}
-    </span>
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild>
+        <button
+          type="button"
+          role="status"
+          aria-label="Status dos serviços"
+          title={services.map((s) => `${s.label}: ${s.detail}`).join(" • ")}
+          className="flex h-8 cursor-pointer items-center gap-2.5 rounded-lg border border-border bg-bg px-2.5 text-xs text-muted transition-colors hover:border-muted hover:text-text"
+        >
+          {services.map((service) => (
+            <span key={service.key} className="inline-flex items-center gap-1.5 whitespace-nowrap">
+              <span aria-hidden className={cn("size-2 rounded-full", DOT_BY_STATE[service.state])} />
+              <span>{service.shortLabel}</span>
+            </span>
+          ))}
+        </button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content
+          align="end"
+          sideOffset={6}
+          className="z-30 w-64 rounded-xl border border-border bg-surface p-1.5 shadow-card"
+        >
+          <DropdownMenu.Label className="px-2.5 py-1.5 text-xs font-semibold text-text">
+            Status dos serviços
+          </DropdownMenu.Label>
+          <div className="space-y-1">
+            {services.map((service) => (
+              <div
+                key={service.key}
+                className="flex items-center justify-between gap-3 rounded-lg px-2.5 py-1.5 text-xs"
+              >
+                <span className="flex items-center gap-2 font-medium text-text">
+                  <span aria-hidden className={cn("size-2 shrink-0 rounded-full", DOT_BY_STATE[service.state])} />
+                  {service.label}
+                </span>
+                <span className="text-right text-muted">
+                  {service.detail}
+                  {service.latencyMs != null ? ` · ${service.latencyMs} ms` : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
   );
 }
 

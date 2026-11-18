@@ -40,6 +40,77 @@ async def test_ready_responde_503_sem_banco(app, client):
     assert response.json()["status"] == "unavailable"
 
 
+async def test_status_detalha_backend_banco_e_openrouter_sem_chave(client, monkeypatch):
+    from h2d.routers import health as health_router
+
+    health_router.clear_status_cache()
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    get_settings.cache_clear()
+
+    response = await client.get("/api/status")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["backend"]["status"] == "ok"
+    assert body["database"]["status"] == "ok"
+    assert body["openrouter"]["status"] == "degraded"
+    assert body["openrouter"]["detail"] == "Chave não configurada"
+    get_settings.cache_clear()
+
+
+async def test_status_openrouter_conectado_com_cache(client, monkeypatch):
+    from h2d.routers import health as health_router
+
+    health_router.clear_status_cache()
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test-123")
+    get_settings.cache_clear()
+
+    calls = 0
+
+    async def fake_probe(api_key: str):
+        nonlocal calls
+        calls += 1
+        assert api_key == "sk-or-test-123"
+        return health_router.ServiceStatusOut(status="ok", detail="Conectado", latency_ms=12)
+
+    monkeypatch.setattr(health_router, "_probe_openrouter", fake_probe)
+
+    first = await client.get("/api/status")
+    second = await client.get("/api/status")
+
+    assert first.status_code == 200
+    assert first.json()["openrouter"] == {"status": "ok", "detail": "Conectado", "latency_ms": 12}
+    assert second.status_code == 200
+    assert calls == 1
+
+    health_router.clear_status_cache()
+    get_settings.cache_clear()
+
+
+async def test_status_reporta_banco_indisponivel_sem_derrubar_endpoint(app, client, monkeypatch):
+    from h2d.routers import health as health_router
+
+    class BrokenSession:
+        async def execute(self, *_args, **_kwargs):
+            raise OSError("banco fora do ar")
+
+    async def broken():
+        yield BrokenSession()
+
+    health_router.clear_status_cache()
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    get_settings.cache_clear()
+    app.dependency_overrides[get_session] = broken
+
+    response = await client.get("/api/status")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["backend"]["status"] == "ok"
+    assert body["database"]["status"] == "unavailable"
+    get_settings.cache_clear()
+
+
 def test_migracoes_acompanham_os_modelos():
     # Falha se alguém mudou um modelo e esqueceu de gerar a migração.
     command.check(alembic_config())

@@ -2016,6 +2016,40 @@
         "title": "SendMessage",
         "type": "object"
       },
+      "ServiceStatusOut": {
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "degraded",
+              "unavailable"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "detail"
+        ],
+        "title": "ServiceStatusOut",
+        "type": "object"
+      },
       "SlaMetrics": {
         "properties": {
           "breached": {
@@ -2120,6 +2154,31 @@
           "resolution_minutes"
         ],
         "title": "SlaRow",
+        "type": "object"
+      },
+      "SystemStatusOut": {
+        "properties": {
+          "backend": {
+            "$ref": "#/components/schemas/ServiceStatusOut"
+          },
+          "database": {
+            "$ref": "#/components/schemas/ServiceStatusOut"
+          },
+          "openrouter": {
+            "$ref": "#/components/schemas/ServiceStatusOut"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "backend",
+          "database",
+          "openrouter"
+        ],
+        "title": "SystemStatusOut",
         "type": "object"
       },
       "TechnicianOut": {
@@ -5519,6 +5578,28 @@
           }
         },
         "summary": "Ready",
+        "tags": [
+          "operação"
+        ]
+      }
+    },
+    "/api/status": {
+      "get": {
+        "description": "Estado detalhado do backend, banco de dados e OpenRouter.",
+        "operationId": "getSystemStatus",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemStatusOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "System Status",
         "tags": [
           "operação"
         ]
