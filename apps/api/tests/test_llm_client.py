@@ -325,3 +325,53 @@ def test_get_llm_usa_gemini_quando_gemini_api_key_definida(monkeypatch):
     finally:
         get_settings.cache_clear()
         get_llm.cache_clear()
+
+
+async def test_gemini_usa_modelo_de_reserva_em_503_ou_404():
+    modelos = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        modelos.append(url.rsplit("/", 1)[-1].split(":")[0])
+        if "gemini-4-hydrogen" in url:
+            return httpx.Response(503, text='{"error":{"code":503,"status":"UNAVAILABLE"}}')
+        return _gemini_ok("ok do reserva")
+
+    cliente = GeminiClient(
+        "AIza-teste",
+        model="gemini-4-hydrogen",
+        fallbacks=["gemini-3.1-flash-lite"],
+        timeout=5,
+        transport=httpx.MockTransport(handler),
+        sleep=_sem_espera,
+    )
+    resultado = await cliente.complete(MENSAGENS)
+
+    assert resultado.text == "ok do reserva"
+    assert modelos == ["gemini-4-hydrogen", "gemini-4-hydrogen", "gemini-3.1-flash-lite"]
+
+
+async def test_gemini_resposta_cortada_por_max_tokens_tenta_com_mais_espaco():
+    limites = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        limites.append(json.loads(request.content)["generationConfig"]["maxOutputTokens"])
+        if len(limites) == 1:
+            return httpx.Response(
+                200,
+                json={
+                    "modelVersion": "gemini-3.1-flash-lite",
+                    "candidates": [
+                        {
+                            "content": {"parts": [{"text": "Para criar um"}]},
+                            "finishReason": "MAX_TOKENS",
+                        }
+                    ],
+                },
+            )
+        return _gemini_ok("Para criar um usuário, use useradd.")
+
+    resultado = await _gemini_client(handler).complete(MENSAGENS, max_tokens=700)
+
+    assert resultado.text == "Para criar um usuário, use useradd."
+    assert limites == [700, 1400]

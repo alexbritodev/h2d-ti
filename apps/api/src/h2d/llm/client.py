@@ -204,13 +204,21 @@ class GeminiClient:
         self,
         api_key: str,
         *,
-        model: str = "gemini-3.8-flash",
+        model: str = "gemini-3.1-flash-lite",
+        fallbacks: list[str] | None = None,
         timeout: float,
         transport: httpx.AsyncBaseTransport | None = None,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     ) -> None:
         self._api_key = api_key
         self.model_name = self._normalize_model(model)
+        seen = {self.model_name}
+        self._fallbacks: list[str] = []
+        for fb in fallbacks or []:
+            norm = self._normalize_model(fb)
+            if norm not in seen:
+                seen.add(norm)
+                self._fallbacks.append(norm)
         self._timeout = timeout
         self._transport = transport
         self._sleep = sleep
@@ -222,7 +230,7 @@ class GeminiClient:
             if normalized.startswith(prefix):
                 normalized = normalized[len(prefix) :]
         if not normalized or normalized == "openrouter/free":
-            return "gemini-3.8-flash"
+            return "gemini-3.1-flash-lite"
         return normalized
 
     async def complete(
@@ -246,28 +254,84 @@ class GeminiClient:
         if not contents:
             contents.append({"role": "user", "parts": [{"text": ""}]})
 
-        body: dict[str, Any] = {
-            "contents": contents,
-            "generationConfig": {
-                "temperature": temperature,
-                "maxOutputTokens": max_tokens,
-                "thinkingConfig": {"thinkingBudget": 0},
-            },
-        }
-        if system_parts:
-            body["systemInstruction"] = {"parts": system_parts}
+        candidates = [self.model_name, *self._fallbacks]
+        last_error: LLMError | None = None
+        for idx, current_model in enumerate(candidates):
+            has_more = idx < len(candidates) - 1
+            body: dict[str, Any] = {
+                "contents": contents,
+                "generationConfig": {
+                    "temperature": temperature,
+                    "maxOutputTokens": max_tokens,
+                    "thinkingConfig": {"thinkingBudget": 0},
+                },
+            }
+            if system_parts:
+                body["systemInstruction"] = {"parts": system_parts}
+            try:
+                return await self._complete_single_model(
+                    current_model,
+                    body,
+                    has_fallback=has_more,
+                )
+            except LLMError as error:
+                last_error = error
+                if not has_more:
+                    raise
+        raise last_error or LLMError("sem resposta")
 
-        return await _post_with_retries(
-            url=f"{GEMINI_BASE_URL}/{self.model_name}:generateContent",
-            body=body,
-            headers={"x-goog-api-key": self._api_key},
-            request_timeout=self._timeout,
-            transport=self._transport,
-            sleep=self._sleep,
-            parse=self._parse,
-            on_empty_answer=self._expand_max_tokens,
-            on_bad_request=self._relax_thinking,
-        )
+    async def _complete_single_model(
+        self,
+        model_name: str,
+        body: dict[str, Any],
+        *,
+        has_fallback: bool,
+    ) -> LLMResult:
+        url = f"{GEMINI_BASE_URL}/{model_name}:generateContent"
+        headers = {"x-goog-api-key": self._api_key}
+        per_attempt_timeout = min(self._timeout, 25.0) if self._fallbacks else self._timeout
+        max_attempts = 2 if has_fallback else 5
+        started = time.monotonic()
+        last_error = "sem resposta"
+        rate_limited = False
+
+        async with httpx.AsyncClient(
+            timeout=per_attempt_timeout, transport=self._transport
+        ) as client:
+            for attempt in range(max_attempts):
+                try:
+                    response = await client.post(url, json=body, headers=headers)
+                except httpx.TimeoutException as error:
+                    last_error = f"{type(error).__name__}: {error}"
+                    if has_fallback:
+                        break
+                except httpx.HTTPError as error:
+                    last_error = f"{type(error).__name__}: {error}"
+                else:
+                    if response.status_code == 200:
+                        try:
+                            current_max = int(body["generationConfig"]["maxOutputTokens"])
+                            return self._parse(
+                                response,
+                                started,
+                                fallback_model=model_name,
+                                allow_truncated=current_max >= 4000,
+                            )
+                        except EmptyAnswerError as error:
+                            last_error = str(error)
+                            self._expand_max_tokens(body)
+                            continue
+                    rate_limited = response.status_code == 429
+                    last_error = f"HTTP {response.status_code}: {response.text[:300]}"
+                    if response.status_code == 400 and self._relax_thinking(body, response.text):
+                        continue
+                    if response.status_code == 404 and has_fallback:
+                        break
+                    if response.status_code not in RETRYABLE:
+                        break
+                if attempt < max_attempts - 1:
+                    await self._sleep(1.5 * (attempt + 1))
+        raise LLMError(last_error, rate_limited=rate_limited)
 
     @staticmethod
     def _expand_max_tokens(body: dict[str, Any]) -> None:
@@ -282,7 +346,14 @@ class GeminiClient:
         del config["thinkingConfig"]
         return True
 
-    def _parse(self, response: httpx.Response, started: float) -> LLMResult:
+    def _parse(
+        self,
+        response: httpx.Response,
+        started: float,
+        *,
+        fallback_model: str | None = None,
+        allow_truncated: bool = True,
+    ) -> LLMResult:
         try:
             data = response.json()
             candidate = data["candidates"][0]
@@ -294,14 +365,17 @@ class GeminiClient:
             )
         except (ValueError, KeyError, IndexError, TypeError) as error:
             raise LLMError(f"Resposta inesperada do provedor: {error}") from error
-        if not text.strip() and candidate.get("finishReason") in ("MAX_TOKENS", "length"):
-            raise EmptyAnswerError(
-                "O modelo gastou todos os tokens raciocinando e não escreveu a resposta"
-            )
+        if candidate.get("finishReason") in ("MAX_TOKENS", "length"):
+            if not text.strip():
+                raise EmptyAnswerError(
+                    "O modelo gastou todos os tokens raciocinando e não escreveu a resposta"
+                )
+            if not allow_truncated:
+                raise EmptyAnswerError("A resposta foi cortada pelo limite de tokens")
         usage = data.get("usageMetadata") or {}
         return LLMResult(
             text=text.strip(),
-            model=str(data.get("modelVersion") or self.model_name),
+            model=str(data.get("modelVersion") or fallback_model or self.model_name),
             input_tokens=int(usage.get("promptTokenCount") or 0),
             output_tokens=int(usage.get("candidatesTokenCount") or 0),
             cost_usd=Decimal(0),
@@ -360,10 +434,12 @@ def get_llm() -> LLM:
     gemini_key = (
         settings.gemini_api_key.get_secret_value().strip() if settings.gemini_api_key else ""
     )
+    gemini_fallbacks = [m.strip() for m in settings.gemini_fallback_models.split(",") if m.strip()]
     if gemini_key:
         return GeminiClient(
             gemini_key,
             model=settings.gemini_model,
+            fallbacks=gemini_fallbacks,
             timeout=settings.llm_timeout_seconds,
         )
     openrouter_key = (
@@ -380,6 +456,7 @@ def get_llm() -> LLM:
         return GeminiClient(
             openrouter_key,
             model=model,
+            fallbacks=gemini_fallbacks,
             timeout=settings.llm_timeout_seconds,
         )
     if openrouter_key:

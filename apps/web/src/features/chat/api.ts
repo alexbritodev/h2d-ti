@@ -98,6 +98,7 @@ export async function sendMessage(
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let finished = false;
   for (;;) {
     const { value, done } = await reader.read();
     if (done) break;
@@ -113,9 +114,17 @@ export async function sendMessage(
       else if (parsed.event === "sources") handlers.onSources((data.citations as Citation[]) ?? []);
       else if (parsed.event === "flow") handlers.onFlow?.((data.steps as FlowStep[]) ?? []);
       else if (parsed.event === "agent_progress") handlers.onAgentProgress?.(data as unknown as AgentProgressEvent);
-      else if (parsed.event === "done") handlers.onDone(data as unknown as Parameters<StreamHandlers["onDone"]>[0]);
-      else if (parsed.event === "error") handlers.onError(String(data.detail ?? "Erro ao responder."));
+      else if (parsed.event === "done") {
+        finished = true;
+        handlers.onDone(data as unknown as Parameters<StreamHandlers["onDone"]>[0]);
+      } else if (parsed.event === "error") {
+        finished = true;
+        handlers.onError(String(data.detail ?? "Erro ao responder."));
+      }
     }
+  }
+  if (!finished) {
+    handlers.onError("A conexão com o assistente foi encerrada antes da resposta concluir. Tente novamente.");
   }
 }
 

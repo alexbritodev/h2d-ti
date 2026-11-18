@@ -18,7 +18,8 @@ class Settings(BaseSettings):
     openrouter_api_key: SecretStr | None = None
     # Chave do Google AI Studio (Gemini). Quando definida, usa a API direta do Gemini.
     gemini_api_key: SecretStr | None = None
-    gemini_model: str = "gemini-3.8-flash"
+    gemini_model: str = "gemini-3.1-flash-lite"
+    gemini_fallback_models: str = "gemini-3.5-flash-lite,gemini-flash-lite-latest"
     # Arquivos originais enviados na ingestão (volume compartilhado entre API e worker).
     upload_dir: str = "/data/uploads"
     # Cache do modelo de embeddings (ADR-003). Na imagem de produção o modelo já vem baixado.

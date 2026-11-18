@@ -61,7 +61,7 @@ Action = Literal[
     "answered", "clarify", "not_found", "escalate", "unavailable", "limit", "smalltalk"
 ]
 HISTORY_MESSAGES = 6
-ANSWER_MAX_TOKENS = 1500  # modelos que "pensam" gastam o limite no raciocínio e cortam a resposta
+ANSWER_MAX_TOKENS = 2500  # modelos que "pensam" gastam o limite no raciocínio e cortam a resposta
 SEARCH_LIMIT = 8  # trechos têm ~60 palavras: 5 deixavam o modelo sem contexto para perguntas amplas
 
 log = logging.getLogger("h2d.chat")
@@ -86,9 +86,11 @@ def _get_agent_llm(model_override: str, default_llm: LLM) -> LLM:
             if candidate.startswith(("AIza", "AQ.")):
                 gemini_key = candidate
         if gemini_key:
+            fallbacks = [m.strip() for m in settings.gemini_fallback_models.split(",") if m.strip()]
             return GeminiClient(
                 gemini_key,
                 model=model_override,
+                fallbacks=fallbacks,
                 timeout=settings.llm_timeout_seconds,
             )
         return default_llm
@@ -561,7 +563,7 @@ async def handle_user_message(
                 conversation=conversation,
                 prompt_version=prompt_version,
                 temperature=0.5,
-                max_tokens=500,
+                max_tokens=1000,
             )
             body = written.text.strip()
             if not body:
