@@ -419,3 +419,19 @@ def test_get_llm_usa_servidor_local_quando_llm_base_url_definida(monkeypatch):
     finally:
         get_settings.cache_clear()
         get_llm.cache_clear()
+
+
+def test_get_llm_usa_deepseek_quando_deepseek_api_key_definida(monkeypatch):
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-deepseek-teste")
+    monkeypatch.setenv("DEEPSEEK_MODEL", "deepseek-chat")
+    get_settings.cache_clear()
+    get_llm.cache_clear()
+    try:
+        llm = get_llm()
+        assert isinstance(llm, OpenRouterClient)
+        assert llm.model_name == "deepseek-chat"
+        assert llm._url == "https://api.deepseek.com/v1/chat/completions"
+        assert llm._is_openrouter is False
+    finally:
+        get_settings.cache_clear()
+        get_llm.cache_clear()

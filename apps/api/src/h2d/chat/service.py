@@ -38,6 +38,7 @@ from h2d.escritorio.events import emit_agent_event
 from h2d.kb.embeddings import Embedder
 from h2d.kb.search import Hit, expand_sections, search_chunks
 from h2d.llm.client import (
+    DEEPSEEK_URL,
     LLM,
     ChatMessage,
     FakeLLM,
@@ -75,6 +76,19 @@ def _get_agent_llm(model_override: str, default_llm: LLM) -> LLM:
     if model_override == default_llm.model_name:
         return default_llm
     settings = get_settings()
+    deepseek_key = (
+        settings.deepseek_api_key.get_secret_value().strip() if settings.deepseek_api_key else ""
+    )
+    if deepseek_key:
+        if model_override in ("", "openrouter/free", settings.deepseek_model):
+            return default_llm
+        return OpenRouterClient(
+            deepseek_key,
+            model=model_override,
+            fallbacks=[],
+            timeout=settings.llm_timeout_seconds,
+            base_url=DEEPSEEK_URL,
+        )
     if settings.llm_base_url.strip():
         if model_override in ("", "openrouter/free", settings.llm_model):
             return default_llm

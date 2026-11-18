@@ -117,6 +117,8 @@ async def _probe_local_llm(base_url: str, api_key: str) -> ServiceStatusOut:
 async def _check_openrouter() -> ServiceStatusOut:
     global _openrouter_cache
     settings = get_settings()
+    deepseek_secret = settings.deepseek_api_key
+    deepseek_key = deepseek_secret.get_secret_value().strip() if deepseek_secret is not None else ""
     local_url = settings.llm_base_url.strip()
     local_key = settings.llm_api_key.get_secret_value().strip() if settings.llm_api_key else ""
     gemini_secret = settings.gemini_api_key
@@ -126,7 +128,9 @@ async def _check_openrouter() -> ServiceStatusOut:
         openrouter_secret.get_secret_value().strip() if openrouter_secret is not None else ""
     )
 
-    if local_url:
+    if deepseek_key:
+        provider, api_key = "deepseek", deepseek_key
+    elif local_url:
         provider, api_key = f"local:{local_url}", local_key
     elif gemini_key:
         provider, api_key = "gemini", gemini_key
@@ -144,7 +148,9 @@ async def _check_openrouter() -> ServiceStatusOut:
         if cached_key == cache_key and (now - cached_at) < OPENROUTER_CACHE_TTL_SECONDS:
             return cached_status
 
-    if local_url:
+    if provider == "deepseek":
+        result = await _probe_local_llm("https://api.deepseek.com/v1", deepseek_key)
+    elif local_url:
         result = await _probe_local_llm(local_url, local_key)
     elif provider == "gemini":
         result = await _probe_gemini(api_key)

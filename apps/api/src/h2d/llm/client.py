@@ -18,6 +18,7 @@ import httpx
 from h2d.config import get_settings
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 RETRYABLE = {429, 500, 502, 503, 504}
 
@@ -449,6 +450,17 @@ class UnavailableLLM:
 @lru_cache
 def get_llm() -> LLM:
     settings = get_settings()
+    deepseek_key = (
+        settings.deepseek_api_key.get_secret_value().strip() if settings.deepseek_api_key else ""
+    )
+    if deepseek_key:
+        return OpenRouterClient(
+            deepseek_key,
+            model=settings.deepseek_model,
+            fallbacks=[],
+            timeout=settings.llm_timeout_seconds,
+            base_url=DEEPSEEK_URL,
+        )
     local_url = settings.llm_base_url.strip()
     if local_url:
         local_key = settings.llm_api_key.get_secret_value().strip() if settings.llm_api_key else ""

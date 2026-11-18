@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     jwt_ttl_minutes: int = Field(default=480, gt=0)
     cookie_secure: bool = True
     seed_password: SecretStr | None = None
+    # Chave da API do DeepSeek (compatível com OpenAI: https://api.deepseek.com/v1).
+    deepseek_api_key: SecretStr | None = None
+    deepseek_model: str = "deepseek-chat"
     # Servidor LLM local/compatível com OpenAI (ex.: Ollama na VPS: http://host.docker.internal:11434/v1).
     llm_base_url: str = ""
     llm_model: str = "gemma4"
@@ -64,6 +67,8 @@ class Settings(BaseSettings):
 
     @property
     def active_llm_model(self) -> str:
+        if self.deepseek_api_key and self.deepseek_api_key.get_secret_value().strip():
+            return self.deepseek_model
         if self.llm_base_url.strip():
             return self.llm_model
         if self.gemini_api_key and self.gemini_api_key.get_secret_value().strip():

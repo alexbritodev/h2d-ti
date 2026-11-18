@@ -21,6 +21,9 @@ x-api-env: &api-env
   COOKIE_SECURE: "true"
   ALLOW_DEMO_SEED: ${ALLOW_DEMO_SEED:-false}
   SEED_PASSWORD: ${SEED_PASSWORD:-}
+  # DeepSeek (API compatível com OpenAI).
+  DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+  DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
   # Servidor LLM local na VPS (Ollama: http://host.docker.internal:11434/v1).
   LLM_BASE_URL: ${LLM_BASE_URL:-}
   LLM_MODEL: ${LLM_MODEL:-gemma4}
