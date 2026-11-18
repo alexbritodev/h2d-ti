@@ -21,6 +21,7 @@ import {
   createConversation,
   escalate,
   type FlowStep,
+  listConversations,
   loadChunk,
   loadConversation,
   resolveConversation,
@@ -48,19 +49,157 @@ const GREETING =
 
 const OFFER_TICKET: ChatAction[] = ["not_found", "unavailable", "limit"];
 
+const CHAT_SESSION_KEY = "h2d-chat-session";
+
+interface ChatSessionSnapshot {
+  userId: string | null;
+  conversationId: string | null;
+  messages: UiMessage[];
+  draft: string;
+  status: ConversationStatus;
+  ticket: TicketRef | null;
+  flow: FlowStep[] | null;
+  startedNew: boolean;
+}
+
+const EMPTY_SESSION: ChatSessionSnapshot = {
+  userId: null,
+  conversationId: null,
+  messages: [],
+  draft: "",
+  status: "open",
+  ticket: null,
+  flow: null,
+  startedNew: false,
+};
+
+let memorySession: ChatSessionSnapshot | null = null;
+
+function readChatSession(): ChatSessionSnapshot {
+  if (memorySession) return memorySession;
+  try {
+    const raw = window.sessionStorage.getItem(CHAT_SESSION_KEY);
+    if (!raw) return EMPTY_SESSION;
+    const parsed = JSON.parse(raw) as Partial<ChatSessionSnapshot>;
+    const restored: ChatSessionSnapshot = {
+      userId: typeof parsed.userId === "string" ? parsed.userId : null,
+      conversationId: typeof parsed.conversationId === "string" ? parsed.conversationId : null,
+      messages: Array.isArray(parsed.messages)
+        ? parsed.messages.map((m) => ({ ...m, streaming: false }))
+        : [],
+      draft: typeof parsed.draft === "string" ? parsed.draft : "",
+      status: parsed.status ?? "open",
+      ticket: parsed.ticket ?? null,
+      flow: Array.isArray(parsed.flow) ? parsed.flow : null,
+      startedNew: Boolean(parsed.startedNew),
+    };
+    memorySession = restored;
+    return restored;
+  } catch {
+    return EMPTY_SESSION;
+  }
+}
+
+function writeChatSession(snapshot: ChatSessionSnapshot): void {
+  memorySession = snapshot;
+  try {
+    const serializable: ChatSessionSnapshot = {
+      ...snapshot,
+      messages: snapshot.messages.map((m) => ({ ...m, streaming: false })),
+    };
+    window.sessionStorage.setItem(CHAT_SESSION_KEY, JSON.stringify(serializable));
+  } catch {
+    // sessionStorage indisponível ou cheio: cache em memória segue ativo
+  }
+}
+
+export function resetChatSessionCache(): void {
+  memorySession = null;
+  try {
+    window.sessionStorage.removeItem(CHAT_SESSION_KEY);
+  } catch {
+    // ignora erro em ambientes sem storage
+  }
+}
+
 export function ChatPage() {
-  const [conversationId, setConversationId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<UiMessage[]>([]);
-  const [draft, setDraft] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState<ConversationStatus>("open");
-  const [ticket, setTicket] = useState<TicketRef | null>(null);
+  const initial = readChatSession();
+  const [conversationId, setConversationId] = useState<string | null>(initial.conversationId);
+  const [messages, setMessages] = useState<UiMessage[]>(initial.messages);
+  const [draft, setDraft] = useState(initial.draft);
+  const [busy, setBusy] = useState(() => initial.messages.some((m) => m.streaming));
+  const [status, setStatus] = useState<ConversationStatus>(initial.status);
+  const [ticket, setTicket] = useState<TicketRef | null>(initial.ticket);
   const [error, setError] = useState<string | null>(null);
   const [openedChunk, setOpenedChunk] = useState<string | null>(null);
-  const [flow, setFlow] = useState<FlowStep[] | null>(null);
+  const [flow, setFlow] = useState<FlowStep[] | null>(initial.flow);
+  const [startedNew, setStartedNew] = useState(initial.startedNew);
   const { data: me } = useQuery(meQuery);
   const isAdmin = me?.role === "admin";
   const listEnd = useRef<HTMLLIElement>(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const prev = readChatSession();
+    if (me?.id && prev.userId && prev.userId !== me.id) {
+      resetChatSessionCache();
+      setConversationId(null);
+      setMessages([]);
+      setDraft("");
+      setStatus("open");
+      setTicket(null);
+      setFlow(null);
+      setStartedNew(false);
+      return;
+    }
+    writeChatSession({
+      userId: me?.id ?? prev.userId,
+      conversationId,
+      messages,
+      draft,
+      status,
+      ticket,
+      flow,
+      startedNew,
+    });
+  }, [me?.id, conversationId, messages, draft, status, ticket, flow, startedNew]);
+
+  useEffect(() => {
+    if (!me?.id || conversationId || messages.length > 0 || startedNew) return;
+    let active = true;
+    void (async () => {
+      const conversations = await listConversations();
+      if (!active) return;
+      const latestOpen =
+        conversations.find((c) => c.status === "open" && c.title !== null) ??
+        conversations.find((c) => c.status === "open");
+      if (!latestOpen) return;
+      const detail = await loadConversation(latestOpen.id);
+      if (!active || !detail || detail.messages.length === 0) return;
+      const restored: UiMessage[] = detail.messages.map((m) => ({
+        key: m.id,
+        id: m.id,
+        role: m.role === "user" ? "user" : "assistant",
+        content: m.content,
+        citations: m.citations,
+        feedback: m.feedback === 1 || m.feedback === -1 ? m.feedback : undefined,
+      }));
+      setConversationId(detail.id);
+      setMessages(restored);
+      setStatus(detail.status);
+      setTicket(detail.ticket ?? null);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [me?.id, conversationId, messages.length, startedNew]);
 
   useEffect(() => {
     listEnd.current?.scrollIntoView?.({ block: "end" });
@@ -72,7 +211,10 @@ export function ChatPage() {
   async function ensureConversation(): Promise<string | null> {
     if (conversationId) return conversationId;
     const id = await createConversation();
-    if (id) setConversationId(id);
+    if (id) {
+      setConversationId(id);
+      writeChatSession({ ...readChatSession(), userId: me?.id ?? null, conversationId: id });
+    }
     return id;
   }
 
@@ -91,6 +233,7 @@ export function ChatPage() {
     setError(null);
     setBusy(true);
     setDraft("");
+    setStartedNew(false);
     const id = await ensureConversation();
     if (!id) {
       setBusy(false);
@@ -98,8 +241,8 @@ export function ChatPage() {
       return;
     }
     const assistantKey = crypto.randomUUID();
-    setMessages((current) => [
-      ...current,
+    const appended: UiMessage[] = [
+      ...messages,
       { key: crypto.randomUUID(), role: "user", content: text, citations: [] },
       {
         key: assistantKey,
@@ -109,9 +252,23 @@ export function ChatPage() {
         streaming: true,
         agentEvents: [],
       },
-    ]);
-    const update = (patch: (m: UiMessage) => UiMessage) =>
-      setMessages((current) => current.map((m) => (m.key === assistantKey ? patch(m) : m)));
+    ];
+    writeChatSession({
+      ...readChatSession(),
+      userId: me?.id ?? null,
+      conversationId: id,
+      messages: appended,
+      draft: "",
+      startedNew: false,
+    });
+    if (mountedRef.current) setMessages(appended);
+
+    const update = (patch: (m: UiMessage) => UiMessage) => {
+      const snap = readChatSession();
+      const nextMessages = snap.messages.map((m) => (m.key === assistantKey ? patch(m) : m));
+      writeChatSession({ ...snap, messages: nextMessages });
+      if (mountedRef.current) setMessages(nextMessages);
+    };
 
     await sendMessage(id, text, {
       onAgentProgress: (ev) =>
@@ -121,19 +278,34 @@ export function ChatPage() {
         })),
       onToken: (piece) => update((m) => ({ ...m, content: m.content + piece })),
       onSources: (citations) => update((m) => ({ ...m, citations })),
-      onFlow: setFlow,
+      onFlow: (steps) => {
+        writeChatSession({ ...readChatSession(), flow: steps });
+        if (mountedRef.current) setFlow(steps);
+      },
       onDone: (done) => {
         update((m) => ({ ...m, id: done.message_id, action: done.action, streaming: false }));
-        setStatus(done.conversation_status);
-        if (done.ticket) setTicket(done.ticket);
+        writeChatSession({
+          ...readChatSession(),
+          status: done.conversation_status,
+          ticket: done.ticket ?? readChatSession().ticket,
+        });
+        if (mountedRef.current) {
+          setStatus(done.conversation_status);
+          if (done.ticket) setTicket(done.ticket);
+        }
       },
       onError: (detail) => {
-        setError(detail);
-        setMessages((current) => current.filter((m) => m.key !== assistantKey));
+        const snap = readChatSession();
+        const filtered = snap.messages.filter((m) => m.key !== assistantKey);
+        writeChatSession({ ...snap, messages: filtered });
+        if (mountedRef.current) {
+          setError(detail);
+          setMessages(filtered);
+        }
       },
     });
     update((m) => ({ ...m, streaming: false }));
-    setBusy(false);
+    if (mountedRef.current) setBusy(false);
   }
 
   async function rate(message: UiMessage, value: 1 | -1) {
@@ -169,10 +341,17 @@ export function ChatPage() {
   function newConversation() {
     setConversationId(null);
     setMessages([]);
+    setDraft("");
     setStatus("open");
     setTicket(null);
     setError(null);
     setFlow(null);
+    setStartedNew(true);
+    writeChatSession({
+      ...EMPTY_SESSION,
+      userId: me?.id ?? null,
+      startedNew: true,
+    });
   }
 
   return (

@@ -37,7 +37,15 @@ from h2d.config import get_settings
 from h2d.escritorio.events import emit_agent_event
 from h2d.kb.embeddings import Embedder
 from h2d.kb.search import Hit, expand_sections, search_chunks
-from h2d.llm.client import LLM, ChatMessage, FakeLLM, LLMError, LLMResult, OpenRouterClient
+from h2d.llm.client import (
+    LLM,
+    ChatMessage,
+    FakeLLM,
+    GeminiClient,
+    LLMError,
+    LLMResult,
+    OpenRouterClient,
+)
 from h2d.models import (
     Conversation,
     ConversationStatus,
@@ -64,7 +72,26 @@ _guardiao = Guardiao()
 def _get_agent_llm(model_override: str, default_llm: LLM) -> LLM:
     if not model_override or isinstance(default_llm, FakeLLM):
         return default_llm
+    if model_override == default_llm.model_name:
+        return default_llm
     settings = get_settings()
+    if isinstance(default_llm, GeminiClient):
+        if model_override in ("", "openrouter/free", settings.gemini_model):
+            return default_llm
+        gemini_key = (
+            settings.gemini_api_key.get_secret_value().strip() if settings.gemini_api_key else ""
+        )
+        if not gemini_key and settings.openrouter_api_key:
+            candidate = settings.openrouter_api_key.get_secret_value().strip()
+            if candidate.startswith(("AIza", "AQ.")):
+                gemini_key = candidate
+        if gemini_key:
+            return GeminiClient(
+                gemini_key,
+                model=model_override,
+                timeout=settings.llm_timeout_seconds,
+            )
+        return default_llm
     if model_override == settings.openrouter_model:
         return default_llm
     if settings.openrouter_api_key and settings.openrouter_api_key.get_secret_value():
@@ -766,6 +793,13 @@ async def handle_user_message(
         wider = await widen(hits)
         if wider is not None:
             hits = wider
+            docs = list(dict.fromkeys(h.document_title for h in hits if h.kind == "kb"))
+            await emit_progress(
+                "rag",
+                "aprovado",
+                f"{len(hits)} trecho(s) relevante(s) encontrado(s) após expansão de busca.",
+                {"trechos_encontrados": len(hits), "documentos": docs},
+            )
             try:
                 answered = await ask(hits)
                 kind, body = _classify(answered.text.strip(), hits)
@@ -850,7 +884,7 @@ async def handle_user_message(
                     conversation=conversation,
                     prompt_version=version,
                     temperature=0.0,
-                    max_tokens=400,
+                    max_tokens=600,
                 )
                 return validador.interpretar_resposta(val_call.text)
             except LLMError as val_err:
@@ -923,7 +957,8 @@ async def handle_user_message(
             regen_answer = regen_result.text.strip()
             regen_citations = _cited(regen_answer, hits)
             val_result_regen = await _run_validador("fidelity_regen", regen_answer)
-            if val_result_regen.valida and regen_citations:
+            if val_result_regen.valida:
+                final_citations = regen_citations or citations
                 pct = int(val_result_regen.confianca * 100)
                 await emit_progress(
                     "validador",
@@ -941,7 +976,7 @@ async def handle_user_message(
                     f"aprovada após regeneração ({val_result_regen.confianca:.2f})",
                 )
                 return await reply(
-                    "answered", regen_answer, citations=regen_citations, prompt_version=version
+                    "answered", regen_answer, citations=final_citations, prompt_version=version
                 )
 
             log.warning("Regeneração também reprovada pelo validador: %s", val_result_regen.motivo)
@@ -959,6 +994,15 @@ async def handle_user_message(
             return await missed("unfaithful", NOT_FOUND_MANUALS_MESSAGE)
         except LLMError as err:
             log.warning("Erro na regeneração restritiva: %s", err)
+            if citations:
+                await emit_progress(
+                    "validador",
+                    "erro",
+                    "Regeneração indisponível; resposta original com fontes mantida.",
+                    {"erro": str(err)},
+                )
+                step("fidelity", "skip", "regeneração indisponível")
+                return await reply("answered", answer, citations=citations, prompt_version=version)
             await emit_progress(
                 "validador", "erro", "Erro ao regenerar resposta.", {"erro": str(err)}
             )

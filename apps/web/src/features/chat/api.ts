@@ -119,6 +119,11 @@ export async function sendMessage(
   }
 }
 
+export async function listConversations() {
+  const { data } = await api.GET("/api/chat/conversations");
+  return data ?? [];
+}
+
 export async function createConversation(): Promise<string | null> {
   const { data } = await api.POST("/api/chat/conversations");
   return data?.id ?? null;

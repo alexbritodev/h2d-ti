@@ -31,8 +31,12 @@ Critérios:
 
 Notas:
 - Ignore saudações cordiais, ofertas de suporte adicional ou marcas [1], [2].
+- Explicações didáticas curtas sobre o que cada comando faz, formatação em blocos de código e \
+substituição de exemplos por marcadores genéricos (ex.: NOME_DO_USUARIO, <serviço>, arquivo) \
+são VÁLIDAS.
 - Se a resposta afirmar com honestidade que algo não consta nos manuais, isso é VÁLIDO.
-- Qualquer comando inventado ou parâmetro não documentado torna a resposta INVÁLIDA.
+- Reprove SOMENTE se a resposta inventar comandos/parâmetros ou afirmar fatos que contradigam ou \
+não tenham base alguma nas fontes recuperadas.
 
 Responda com o veredito (SIM ou NAO) em JSON estrito no seguinte formato:
 {
@@ -46,7 +50,8 @@ REGENERATE_RESTRICTIVE_PROMPT = """Você é o assistente de TI. Sua resposta ant
 por conter informações não comprovadas nos manuais.
 
 REGRAS ESTRITAS DE REGENERAÇÃO:
-1. Responda SOMENTE com base nos trechos dentro de <fontes>.
+1. Responda SOMENTE com base nos trechos dentro de <fontes>, mantendo obrigatoriamente as \
+citações [1], [2]... ao final de cada passo ou comando.
 2. NÃO adicione nenhum comando ou suposição que não esteja expressamente escrito nas fontes.
 3. Se as fontes não cobrirem a dúvida por completo, responda APENAS o documentado, \
 cite [1], [2]... e declare em uma frase curta o que não consta nos manuais.
@@ -102,21 +107,42 @@ class Validador:
                 "motivo": "Resposta validada pelo juiz.",
             }
 
-        candidate = cleaned
-        if "```" in candidate:
-            match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", candidate, re.DOTALL)
-            if match:
-                candidate = match.group(1)
-
-        start = candidate.find("{")
-        end = candidate.rfind("}")
+        start = cleaned.find("{")
+        end = cleaned.rfind("}")
         if start != -1 and end > start:
+            raw_json = cleaned[start : end + 1]
             try:
-                data = json.loads(candidate[start : end + 1])
+                try:
+                    data = json.loads(raw_json)
+                except json.JSONDecodeError:
+                    # Modelos podem colocar '\;' ou caminhos sem escape duplo no JSON.
+                    repaired = re.sub(r'\\(?!["\\/bfnrtu])', r"\\\\", raw_json)
+                    data = json.loads(repaired)
                 if isinstance(data, dict):
                     return data
             except Exception as parse_err:
                 log.debug("JSON parse fallback error: %s", parse_err)
+
+        # Se o JSON veio truncado por limite de tokens (sem '}' final) ou com erro de sintaxe,
+        # tenta extrair os campos principais antes de cair no fallback discursivo.
+        valida_match = re.search(
+            r'"(?:v[aá]lid[ao]|aprovad[ao])"\s*:\s*(true|false|"(?:true|false|sim|n[aã]o)")',
+            cleaned,
+            re.IGNORECASE,
+        )
+        if valida_match:
+            extracted: dict[str, Any] = {"valida": valida_match.group(1).strip('"')}
+            conf_match = re.search(
+                r'"confian[cç]a"\s*:\s*([0-9]+(?:\.[0-9]+)?)',
+                cleaned,
+                re.IGNORECASE,
+            )
+            if conf_match:
+                extracted["confianca"] = float(conf_match.group(1))
+            motivo_match = re.search(r'"motivo"\s*:\s*"([^"\n]*)', cleaned, re.IGNORECASE)
+            if motivo_match and motivo_match.group(1).strip():
+                extracted["motivo"] = motivo_match.group(1).strip()
+            return extracted
 
         if cleaned:
             if Validador._is_discursive_rejection(cleaned):
@@ -154,13 +180,42 @@ class Validador:
         )
         return any(re.search(pat, norm) for pat in rejection_patterns)
 
+    @staticmethod
+    def _coerce_bool(value: Any) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            norm = value.strip().lower()
+            if norm in ("true", "sim", "yes", "1"):
+                return True
+            if norm in ("false", "nao", "não", "no", "0"):
+                return False
+        return bool(value)
+
     def interpretar_resposta(self, raw_text: str) -> ValidadorResult:
         """Interpreta a saída do modelo juiz (JSON ou veredito)."""
         try:
             data = self._parse_judge_json(raw_text)
-            valida = bool(data.get("valida", False))
-            confianca = float(data.get("confianca", 0.0))
+            raw_valida: Any = False
+            for key in ("valida", "válida", "valido", "válido", "aprovado", "aprovada"):
+                if key in data:
+                    raw_valida = data[key]
+                    break
+            valida = self._coerce_bool(raw_valida)
+
+            raw_conf: Any = None
+            for key in ("confianca", "confiança", "confidence"):
+                if key in data and data[key] is not None:
+                    raw_conf = data[key]
+                    break
+            if raw_conf is None:
+                confianca = 0.9 if valida else 0.0
+            else:
+                confianca = float(raw_conf)
+                if confianca > 1.0:
+                    confianca /= 100.0
             confianca = max(0.0, min(1.0, confianca))
+
             afirmacoes = [str(x) for x in data.get("afirmacoes_sem_respaldo", []) if str(x).strip()]
             motivo = str(data.get("motivo", "Validação concluída."))
 
@@ -216,7 +271,7 @@ class Validador:
                     ChatMessage("user", user_prompt),
                 ],
                 temperature=0.0,
-                max_tokens=400,
+                max_tokens=600,
             )
             return self.interpretar_resposta(result.text)
         except (LLMError, ValueError, Exception) as exc:

@@ -153,3 +153,31 @@ def test_validador_discursive_fallback_distinguishes_rejection(texto: str, esper
     validador = Validador(confidence_threshold=0.7)
     res = validador.interpretar_resposta(texto)
     assert res.valida is esperado
+
+
+def test_validador_parses_json_with_braces_in_linux_commands() -> None:
+    validador = Validador(confidence_threshold=0.7)
+    raw = """```json
+{
+  "valida": false,
+  "confianca": 0.2,
+  "afirmacoes_sem_respaldo": ["find /var -exec rm {} \\;"],
+  "motivo": "O comando {rm} não consta no manual."
+}
+```"""
+    res = validador.interpretar_resposta(raw)
+    assert res.valida is False
+    assert res.afirmacoes_sem_respaldo == ["find /var -exec rm {} \\;"]
+
+
+def test_validador_parses_truncated_json_and_percentage_variants() -> None:
+    validador = Validador(confidence_threshold=0.7)
+    truncated = '{"valida": true, "confianca": 0.92, "motivo": "Comandos df -h e du constam'
+    res_trunc = validador.interpretar_resposta(truncated)
+    assert res_trunc.valida is True
+    assert res_trunc.confianca == 0.92
+
+    variants = '{"válida": "sim", "confiança": 95, "motivo": "Tudo ok"}'
+    res_var = validador.interpretar_resposta(variants)
+    assert res_var.valida is True
+    assert res_var.confianca == 0.95
