@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     llm_timeout_seconds: float = Field(default=60.0, gt=0)
     # Teto de chamadas ao modelo por dia, somando todos os usuários. Modelo gratuito no
     # OpenRouter: 50/dia (1000 com US$ 10 em créditos). Padrão 200 evita bloqueio local prematuro.
-    llm_daily_request_limit: int = Field(default=200, ge=0)
+    llm_daily_request_limit: int = Field(default=400, ge=0)
     # Limites do chat por conversa.
     chat_max_user_messages: int = Field(default=30, gt=0)
     chat_max_message_chars: int = Field(default=2000, gt=0)

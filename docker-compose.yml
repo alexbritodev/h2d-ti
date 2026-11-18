@@ -40,7 +40,7 @@ x-api-env: &api-env
   OPENROUTER_FALLBACK_MODELS: ${OPENROUTER_FALLBACK_MODELS:-}
   # Teto de chamadas ao modelo por dia (todos os usuários). No OpenRouter gratuito são 50/dia
   # (1000 com US$ 10 em créditos). Padrão 200 evita bloqueio local prematuro em apresentações.
-  LLM_DAILY_REQUEST_LIMIT: ${LLM_DAILY_REQUEST_LIMIT:-200}
+  LLM_DAILY_REQUEST_LIMIT: ${LLM_DAILY_REQUEST_LIMIT:-400}
   # Agentes do Chat (Guardião de Entrada e Validador de Resposta).
   GUARDIAO_ENABLED: ${GUARDIAO_ENABLED:-true}
   GUARDIAO_FAST_ONLY: ${GUARDIAO_FAST_ONLY:-false}
