@@ -202,7 +202,7 @@ def test_json_dentro_de_texto_e_extraido():
         parse_json_object("sem json aqui")
 
 
-def _gemini_client(handler, model: str = "gemini-2.5-flash") -> GeminiClient:
+def _gemini_client(handler, model: str = "gemini-3.8-flash") -> GeminiClient:
     return GeminiClient(
         "AIza-teste",
         model=model,
@@ -216,7 +216,7 @@ def _gemini_ok(text: str = "oi"):
     return httpx.Response(
         200,
         json={
-            "modelVersion": "gemini-2.5-flash",
+            "modelVersion": "gemini-3.8-flash",
             "candidates": [{"content": {"parts": [{"text": f" {text} "}]}, "finishReason": "STOP"}],
             "usageMetadata": {"promptTokenCount": 15, "candidatesTokenCount": 6},
         },
@@ -233,7 +233,7 @@ async def test_gemini_envia_system_instruction_thinking_e_extrai_tokens():
         return httpx.Response(
             200,
             json={
-                "modelVersion": "gemini-2.5-flash",
+                "modelVersion": "gemini-3.8-flash",
                 "candidates": [
                     {
                         "content": {
@@ -249,7 +249,7 @@ async def test_gemini_envia_system_instruction_thinking_e_extrai_tokens():
             },
         )
 
-    cliente = _gemini_client(handler, model="google/gemini-2.5-flash")
+    cliente = _gemini_client(handler, model="google/gemini-3.8-flash")
     resultado = await cliente.complete(
         [
             ChatMessage("system", "seja breve"),
@@ -258,7 +258,7 @@ async def test_gemini_envia_system_instruction_thinking_e_extrai_tokens():
         ]
     )
 
-    assert vistos["url"].endswith("/v1beta/models/gemini-2.5-flash:generateContent")
+    assert vistos["url"].endswith("/v1beta/models/gemini-3.8-flash:generateContent")
     assert vistos["key"] == "AIza-teste"
     assert vistos["body"]["systemInstruction"] == {"parts": [{"text": "seja breve"}]}
     assert vistos["body"]["contents"] == [
@@ -268,7 +268,7 @@ async def test_gemini_envia_system_instruction_thinking_e_extrai_tokens():
     assert resultado.text == "resposta final"
     assert (resultado.input_tokens, resultado.output_tokens) == (15, 6)
     assert resultado.cost_usd == Decimal(0)
-    assert resultado.model == "gemini-2.5-flash"
+    assert resultado.model == "gemini-3.8-flash"
 
 
 async def test_gemini_remove_thinking_config_em_erro_400():
@@ -296,7 +296,7 @@ async def test_gemini_texto_vazio_em_max_tokens_tenta_de_novo_com_mais_espaco():
             return httpx.Response(
                 200,
                 json={
-                    "modelVersion": "gemini-2.5-flash",
+                    "modelVersion": "gemini-3.8-flash",
                     "candidates": [
                         {
                             "content": {"parts": [{"text": "pensando", "thought": True}]},
@@ -315,13 +315,13 @@ async def test_gemini_texto_vazio_em_max_tokens_tenta_de_novo_com_mais_espaco():
 
 def test_get_llm_usa_gemini_quando_gemini_api_key_definida(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "AIza-chave-teste")
-    monkeypatch.setenv("GEMINI_MODEL", "gemini-2.5-flash")
+    monkeypatch.setenv("GEMINI_MODEL", "gemini-3.8-flash")
     get_settings.cache_clear()
     get_llm.cache_clear()
     try:
         llm = get_llm()
         assert isinstance(llm, GeminiClient)
-        assert llm.model_name == "gemini-2.5-flash"
+        assert llm.model_name == "gemini-3.8-flash"
     finally:
         get_settings.cache_clear()
         get_llm.cache_clear()

@@ -204,7 +204,7 @@ class GeminiClient:
         self,
         api_key: str,
         *,
-        model: str = "gemini-2.5-flash",
+        model: str = "gemini-3.8-flash",
         timeout: float,
         transport: httpx.AsyncBaseTransport | None = None,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
@@ -222,7 +222,7 @@ class GeminiClient:
             if normalized.startswith(prefix):
                 normalized = normalized[len(prefix) :]
         if not normalized or normalized == "openrouter/free":
-            return "gemini-2.5-flash"
+            return "gemini-3.8-flash"
         return normalized
 
     async def complete(
